@@ -3,7 +3,7 @@ import torch.nn as nn
 
 config = {
 # Model and training
-    "samples": 1000,
+    "samples": 100000,
     "batch_size": 32,
     "epochs": 1000,
     "data_path":"Data/Training_Data/training_set.npy",
@@ -24,7 +24,7 @@ config = {
 
 # Plant
     "l": 1,
-    "dt": 0.001,
+    "dt": 0.005,
 
 # Simulation
     "sim_T": 10,
@@ -32,6 +32,8 @@ config = {
     "tracking_plot_location":"Data/Sim_Data/",
     "num_trials":10,
     "rmse_data_location":"Data/Sim_Data/rmse_data.text",
+    "steps": 20000,
+    "ref_points":1500
 }
 
 class SimpleNN(nn.Module):

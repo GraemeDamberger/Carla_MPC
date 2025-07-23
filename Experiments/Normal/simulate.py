@@ -55,7 +55,7 @@ def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
     cost = J_x + J_y  # +J_theta
     return cost
 
-def run_sim(trial_num):
+def simulate(trial_num):
     def constraint_decode_specific_points(M_u):
         # sample_points = np.sort(np.random.uniform(0,int(Np/dt),num_sample_points)).astype(int)
         return np.matmul(leg.P[sample_points, :], M_u)
@@ -129,8 +129,8 @@ def run_sim(trial_num):
     for i in range(1, sim_steps):
         # start = time.time()
 
-        #if i % (sim_steps / 10) == 0:
-        #    print(f'{100 * i / sim_steps}%')
+        if i % (sim_steps / 10) == 0:
+            print(f'{100 * i / sim_steps}%')
         # x_mpc_ref, y_mpc_ref = get_mpc_reference(X_des[i:i+Np,0], X_des[i:i+Np,1], V, 0, Np, dt)
         # s0 = s0 + V*dt
         x_mpc_ref, y_mpc_ref = get_mpc_reference(X_des[:, 0], X_des[:, 1], V, s0, Np, dt)
