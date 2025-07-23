@@ -13,7 +13,7 @@ def generate_data(trial_num,log_dir):
 
         return temp_X,temp_Y
 
-
+    # Configure parameters
     samples = config['samples']
     M_u_lb = config['M_u_lb']
     M_u_ub = config['M_u_ub']
@@ -27,17 +27,14 @@ def generate_data(trial_num,log_dir):
     leg = legendre(Np*dt,N,dt)
 
 
-    # Step 1: Generate data
-    #M_u = np.linspace(-np.pi/2.5, np.pi/2.5, 250)
-    #Theta, M_u = np.meshgrid(theta_vals, M_u_vals)
+    #Generate data
     data = []
     for i in range(samples):
-        mu = np.random.uniform(M_u_lb,M_u_ub,N)
+        mu = np.random.uniform(M_u_lb,M_u_ub,N) #Randomly sample control trajectories
         x,y = get_Mx(mu, leg,Np,sys, option='direct')
         data.append(np.hstack((mu, x, y)))
 
+    #Save data for training
     data = np.array(data)
-    print(data.shape)
     save_path = config['data_path']
     np.save(save_path, data)
-    #np.save("my_array.npy", data)

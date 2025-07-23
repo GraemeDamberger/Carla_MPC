@@ -1,5 +1,4 @@
 import carla
-from scipy.optimize import Bounds
 from config import config
 from config import SimpleNN
 from Shared.funcs import bike, legendre, get_mpc_reference, global_to_local, local_to_global
@@ -8,9 +7,8 @@ import numpy as np
 from scipy.optimize import NonlinearConstraint
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-import os
 import time
-from Shared.logging_utils import save_plot, save_model
+from Shared.logging_utils import save_plot
 
 
 
