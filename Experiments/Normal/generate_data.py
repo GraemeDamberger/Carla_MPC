@@ -1,14 +1,12 @@
 from Shared.funcs import bike, legendre
 import numpy as np
-import os
 from config import config
-def generate_data(trial_num):
+def generate_data(trial_num,log_dir):
     def get_Mx(M_u,leg,Np,sys,option = 'direct', data = 'X'):
-        V = 50
         U = leg.decode(M_u)
         X = np.zeros((Np,3))
         for i in range(1,Np):
-            X[i,:] = sys.dynamics(X[i-1,:],V,U[i-1])
+            X[i,:] = sys.dynamics(X[i-1,:],scale_V,U[i-1])
         temp_X = leg.encode(X[:,0])
         temp_Y = leg.encode(X[:,1])
 
@@ -21,7 +19,7 @@ def generate_data(trial_num):
     M_u_ub = config['M_u_ub']
     dt = config['dt']
     Np = config['Np']
-
+    scale_V = config['scale_V']
     l = config['l']
     N = config['N']
 

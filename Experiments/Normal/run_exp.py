@@ -1,16 +1,21 @@
 import numpy as np
 
 from generate_data import generate_data
-from train import train
-from simulate import simulate
+from train2 import train
 from simulate_carla import simulate_carla
 from config import config
-
+from Shared.logging_utils import (
+    create_log_dir, save_config, save_git_info, save_metrics,
+    save_plot, save_model
+)
+log_dir = create_log_dir()
 num_trials = config['num_trials']
-rmse_save_loc = config['rmse_data_location']
 rmse = []
 for trial in range(1):
-    generate_data(trial)
-    train(trial)
-    rmse.append(simulate_carla(trial))
-np.savetxt(rmse_save_loc,np.array(rmse))
+    generate_data(trial,log_dir)
+    train(trial,log_dir)
+    rmse.append(simulate_carla(trial,log_dir))
+save_config(log_dir, config)
+save_git_info(log_dir)
+save_metrics(log_dir, rmse)
+

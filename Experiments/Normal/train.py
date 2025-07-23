@@ -6,7 +6,9 @@ import os
 import matplotlib.pyplot as plt
 from config import config
 from config import SimpleNN
-def train(trial_num):
+from Shared.logging_utils import save_plot, save_model
+
+def train(trial_num,log_dir):
     load_path = config['data_path']
     data = np.load(load_path)
     print(data.shape)
@@ -52,6 +54,7 @@ def train(trial_num):
     for epoch in range(num_epochs):
         # model_local.train()  # Set the model to training mode
         epoch_loss = 0.0
+        model_norm.train()
         for batch_inputs, batch_outputs in train_loader:
             batch_inputs, batch_outputs = batch_inputs.to(device), batch_outputs.to(device)
             predictions = model_norm(batch_inputs)  # Forward pass
@@ -90,11 +93,11 @@ def train(trial_num):
     offline_inputs = inputs
     offline_outputs = outputs
 
-    plot_save_path = config['train_plot_path']
+
 
 
     # Plotting the loss over epochs
-    plt.figure(figsize=(10, 6))
+    fig = plt.figure(figsize=(10, 6))
     plt.plot(range(1, num_epochs + 1), train_losses, marker='o', label='Training Loss')
     plt.plot(range(1, num_epochs + 1), val_losses, marker='s', label='Validation Loss')
 
@@ -103,11 +106,13 @@ def train(trial_num):
     plt.title('Training Loss Over Epochs')
     plt.legend()
     plt.grid()
-    plt.savefig(os.path.join(plot_save_path, "training_loss"))
+    save_plot(log_dir,fig,f"training_loss_trial_{trial_num}")
+
+    #plt.savefig(os.path.join(plot_save_path, "training_loss"))
     #plt.show()
 
     # Plotting the loss over epochs (log scale)
-    plt.figure(figsize=(10, 6))
+    fig = plt.figure(figsize=(10, 6))
     plt.semilogy(range(1, num_epochs + 1), train_losses, marker='o', label='Training Loss')
     plt.semilogy(range(1, num_epochs + 1), val_losses, marker='s', label='Validation Loss')
 
@@ -116,6 +121,8 @@ def train(trial_num):
     plt.title('Training Loss Over Epochs (Log Scale)')
     plt.legend()
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-    plt.savefig(os.path.join(plot_save_path, "training_loss_logscale"))
-
+    #plt.savefig(os.path.join(plot_save_path, "training_loss_logscale"))
+    save_plot(log_dir,fig,f"training_loss_logscale_{trial_num}")
     #plt.show()
+
+    save_model(log_dir,model_norm,f"model_trial_{trial_num}")

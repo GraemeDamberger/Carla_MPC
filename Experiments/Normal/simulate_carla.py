@@ -10,16 +10,18 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import os
 import time
+from Shared.logging_utils import save_plot, save_model
 
 
-def simulate_carla(trial_num):
+
+def simulate_carla(trial_num,log_dir):
     def get_Mx(M_u, leg,sys, Np,N ,model_norm,option='direct', data='X'):
-        V = 50
+
         if option == 'direct':
             U = leg.decode(M_u)
             X = np.zeros((Np, 3))
             for i in range(1, Np):
-                X[i, :] = sys.dynamics(X[i - 1, :], V, U[i - 1])
+                X[i, :] = sys.dynamics(X[i - 1, :], scale_V, U[i - 1])
             temp_X = leg.encode(X[:, 0])
             temp_Y = leg.encode(X[:, 1])
         else:
@@ -40,9 +42,9 @@ def simulate_carla(trial_num):
         # for i in range(len(temp_X)):
         #    X_global[i],Y_global[i] =  local_to_global(temp_X[i],temp_Y[i],X0[2])
 
-        temp_X = 0.02 * V * temp_X
+        temp_X =  1 / scale_V * V * temp_X
         # temp_X+=X0[0]
-        temp_Y = 0.02 * V * temp_Y
+        temp_Y =  1 / scale_V * V * temp_Y
         # temp_Y+=X0[1]
         temp_Ex = temp_X - leg.encode(X_des)
         temp_Ey = temp_Y - leg.encode(Y_des)
@@ -80,7 +82,7 @@ def simulate_carla(trial_num):
     L = config['l']
     dt = config['dt']
     Np = config['Np']
-
+    scale_V = config['scale_V']
     kpV = config['kpV']
     kdV = config['kdV']
 
@@ -206,7 +208,7 @@ def simulate_carla(trial_num):
             control = carla.VehicleControl()
             control.throttle = throttle
             control.brake = brake
-            control.steer = res.x[0]
+            control.steer = U_steer #res.x[0]
             vehicle.apply_control(control)
             V.append(current_speed)
 
@@ -225,28 +227,31 @@ def simulate_carla(trial_num):
                 camera.destroy()
         vehicle.destroy()
 
-    plot_save_path = config['tracking_plot_location']
-    plt.figure()
+    #plot_save_path = config['tracking_plot_location']
+    fig = plt.figure()
     plt.plot(V)
     plt.plot(desired_speed * np.ones(len(V)))
     plt.legend(['V', 'V_des'])
-    plt.savefig(os.path.join(plot_save_path, f"velocity_plot_trial{trial_num}.png"))
+    save_plot(log_dir,fig,f"velocity_plot_trial_{trial_num}")
+    #plt.savefig(os.path.join(plot_save_path, f"velocity_plot_trial{trial_num}.png"))
     #plt.show()
 
-    plt.figure()
+    fig = plt.figure()
     plt.plot(X[0, :], X[1, :])
     plt.plot(X_des[0, ::5], X_des[1, ::5], '.')
     plt.plot(x_mpc_ref, y_mpc_ref, '.')
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.legend(['XY', 'XY des'])
-    plt.savefig(os.path.join(plot_save_path, f"tracking_plot_trial{trial_num}.png"))
+    #plt.savefig(os.path.join(plot_save_path, f"tracking_plot_trial{trial_num}.png"))
+    save_plot(log_dir,fig,f"tracking_plot_trial_{trial_num}")
     #plt.show()
 
-    plt.figure()
+    fig = plt.figure()
     plt.plot(U_mem)
     plt.title('Control')
-    plt.savefig(os.path.join(plot_save_path, f"control_plot_trial{trial_num}.png"))
+    save_plot(log_dir,fig,f"control_plot_trial_{trial_num}")
+    #plt.savefig(os.path.join(plot_save_path, f"control_plot_trial{trial_num}.png"))
     #plt.show()
 
 
