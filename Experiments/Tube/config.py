@@ -3,9 +3,9 @@ import torch.nn as nn
 
 config = {
 # Model and training
-    "samples": 1000000,
+    "samples": 100000,
     "batch_size": 64,
-    "epochs": 500,
+    "epochs": 100,
     "data_path":"Data/Training_Data/training_set.npy",
     "model_path":"Data/model.pth",
     "weight_decay": 2e-3, #5e-2
@@ -21,6 +21,8 @@ config = {
     "R": 0,
     "kpV":100,
     "kdV": 2,
+    "kp_tube": 0.2,
+    "N_des": 1,
 
 # Plant
     "l": 2.5,

@@ -13,14 +13,15 @@ def train(trial_num,log_dir):
     data = np.load(load_path)
     print(data.shape)
     N = config['N']
-    in_dim = N  # X_data.shape[1]
+    N_des = config['N_des']
+    in_dim = N+2*N_des  # X_data.shape[1]
     out_dim = 2 * N
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # -----------------------------
-    inputs = torch.tensor(data[:, :N], dtype=torch.float32)
-    outputs = torch.tensor(data[:, N:], dtype=torch.float32)
+    inputs = torch.tensor(data[:, :in_dim], dtype=torch.float32)
+    outputs = torch.tensor(data[:, in_dim:], dtype=torch.float32)
     inputs = inputs.to(device)
     outputs = outputs.to(device)
 

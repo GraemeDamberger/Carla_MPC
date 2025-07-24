@@ -1,7 +1,7 @@
 import carla
 from config import config
 from config import SimpleNN
-from Shared.funcs import bike, legendre, get_mpc_reference, global_to_local, local_to_global
+from Shared.funcs import bike, legendre, get_mpc_reference, global_to_local
 import torch
 import numpy as np
 from scipy.optimize import NonlinearConstraint
@@ -13,27 +13,32 @@ from Shared.logging_utils import save_plot
 
 
 def simulate_carla(trial_num,log_dir):
-    def get_Mx(M_u, leg,sys, Np,N ,model_norm,option='direct', data='X'):
-
+    def get_Mx(M_u,M_x_des, leg,sys, Np,N ,model_norm,option='direct', data='X'):
         if option == 'direct':
             U = leg.decode(M_u)
             X = np.zeros((Np, 3))
+            X_des = leg_des.decode(M_x_des[:N_des])
+            Y_des = leg_des.decode(M_x_des[N_des:])
             for i in range(1, Np):
-                X[i, :] = sys.dynamics(X[i - 1, :], scale_V, U[i - 1])
+                theta_des = np.arctan2((Y_des[i - 1] - X[i - 1, 1]), (X_des[i - 1] - X[i - 1, 0]))
+                U_p = kp * (theta_des - X[i - 1, 2])
+                X[i, :] = sys.dynamics(X[i - 1, :], scale_V, U[i - 1] + U_p)
             temp_X = leg.encode(X[:, 0])
             temp_Y = leg.encode(X[:, 1])
         else:
-            input_vector = M_u
+            input_vector = np.hstack((M_u, M_x_des))
             input_leg = torch.tensor(input_vector, dtype=torch.float32)  # .to('cuda')
             with torch.no_grad():
                 X_pred = np.array(model_norm(input_leg))  # .to('cpu'))
             temp_X = X_pred[:N]
             temp_Y = X_pred[N:]
-        return temp_X, temp_Y
+
+        return temp_X,temp_Y
 
 
     def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
-        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='nodirect', data='X')
+        M_x_des = np.hstack((leg_des.encode(X_des), leg_des.encode(Y_des)))
+        temp_X, temp_Y = get_Mx(M_u,M_x_des,leg,sys,Np,N, model_norm, option='nodirect', data='X')
 
         # X_global = np.zeros(temp_X.shape)
         # Y_global = np.zeros(temp_Y.shape)
@@ -83,10 +88,11 @@ def simulate_carla(trial_num,log_dir):
     scale_V = config['scale_V']
     kpV = config['kpV']
     kdV = config['kdV']
-
+    N_des = config['N_des']
     Q = config["Q"] * np.eye(Np)
     R = config["R"] * np.eye(Np)
 
+    leg_des = legendre(Np * dt, N_des, dt)
     sys = bike(L,dt)
 
     Steps = config['steps']
@@ -166,6 +172,7 @@ def simulate_carla(trial_num,log_dir):
     kp = 0.5
     kd = 0.1
     ki = 0.2
+    kp_tube =  config['kp_tube']
 
     desired_speed = 4.0
     previous_speed = 0.0
@@ -195,7 +202,11 @@ def simulate_carla(trial_num,log_dir):
             M_u = res.x
             U = leg.decode(M_u)
             U_mem.append(U[0])
-            U_steer = U[0]
+
+            theta_des = np.arctan2((y_mpc_ref[1] - X[1,i - 1]), (x_mpc_ref[1] - X[0,i - 1]))
+            U_p = kp_tube * (theta_des - X[i - 1, 2])
+
+            U_steer = U[0]+U_p
 
             brake = 0.0
             if current_speed - desired_speed > 2.0:  # Do i need this??
