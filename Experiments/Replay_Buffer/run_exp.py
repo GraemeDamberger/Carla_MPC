@@ -1,10 +1,9 @@
 import numpy as np
 
-#from Experiments.Tube.generate_data import generate_data
-from generate_data import generate_data
-from train_2 import train
-from simulate_carla import simulate_carla
-from config import config
+from Experiments.Replay_Buffer.generate_data import generate_data
+from Experiments.Replay_Buffer.train2 import train
+from Experiments.Replay_Buffer.simulate_carla import simulate_carla
+from Experiments.Replay_Buffer.config import config
 from Shared.logging_utils import (
     create_log_dir, save_config, save_git_info, save_metrics,
 )
@@ -18,4 +17,5 @@ for trial in range(1):
 save_config(log_dir, config)
 save_git_info(log_dir)
 save_metrics(log_dir, rmse)
+
 
