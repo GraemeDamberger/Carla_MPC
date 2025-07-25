@@ -1,7 +1,7 @@
 import numpy as np
 
 from generate_data import generate_data
-from train2 import train
+from train_2 import train
 from simulate_carla import simulate_carla
 from config import config
 from Shared.logging_utils import (

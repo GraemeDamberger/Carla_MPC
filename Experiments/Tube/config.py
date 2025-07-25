@@ -3,9 +3,9 @@ import torch.nn as nn
 
 config = {
 # Model and training
-    "samples": 100000,
+    "samples": 200000,
     "batch_size": 64,
-    "epochs": 100,
+    "epochs": 500,
     "data_path":"Data/Training_Data/training_set.npy",
     "model_path":"Data/model.pth",
     "weight_decay": 2e-3, #5e-2
@@ -32,7 +32,7 @@ config = {
     "sim_T": 10,
     "ref_steps":100,
     "num_trials":1,
-    "steps": 10000,
+    "steps": 1000,
     "ref_points":1500
 }
 '''

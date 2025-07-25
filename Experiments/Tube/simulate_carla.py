@@ -96,8 +96,9 @@ def simulate_carla(trial_num,log_dir):
     sys = bike(L,dt)
 
     Steps = config['steps']
-
-    model_norm = SimpleNN(N,2*N)
+    in_dim = N + 2 * N_des  # X_data.shape[1]
+    out_dim = 2 * N
+    model_norm = SimpleNN(in_dim,out_dim)
     model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
     model_norm.eval()
     model_norm = model_norm.to('cpu')
@@ -204,7 +205,7 @@ def simulate_carla(trial_num,log_dir):
             U_mem.append(U[0])
 
             theta_des = np.arctan2((y_mpc_ref[1] - X[1,i - 1]), (x_mpc_ref[1] - X[0,i - 1]))
-            U_p = kp_tube * (theta_des - X[i - 1, 2])
+            U_p = kp_tube * (theta_des - X[2,i - 1])
 
             U_steer = U[0]+U_p
 
