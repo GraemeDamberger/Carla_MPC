@@ -5,7 +5,7 @@ config = {
 # Model and training
     "samples": 1000000,
     "batch_size": 64,
-    "epochs": 500,
+    "epochs": 1000,
     "data_path":"Data/Training_Data/training_set.npy",
     "model_path":"Data/model.pth",
     "weight_decay": 2e-3, #5e-2
