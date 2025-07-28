@@ -15,7 +15,6 @@ def generate_data(trial_num,log_dir):
         temp_X = leg.encode(X[:, 0])
         temp_Y = leg.encode(X[:, 1])
 
-
         return temp_X,temp_Y
 
     # Configure parameters
@@ -40,9 +39,9 @@ def generate_data(trial_num,log_dir):
     data = []
     for i in range(samples):
         mu = np.random.uniform(M_u_lb,M_u_ub,N) #Randomly sample control trajectories
-        xthetades = np.random.uniform(M_u_lb, M_u_ub, 2 * N_des)
-        x,y = get_Mx(mu,xthetades ,leg,Np,sys, option='direct')
-        data.append(np.hstack((mu,xthetades, x, y)))
+        M_x_des = np.random.uniform(M_u_lb, M_u_ub, 2 * N_des)
+        x,y = get_Mx(mu,M_x_des ,leg,Np,sys, option='direct')
+        data.append(np.hstack((mu,M_x_des, x, y)))
 
     #Save data for training
     data = np.array(data)

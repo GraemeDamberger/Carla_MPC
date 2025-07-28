@@ -38,7 +38,7 @@ def simulate_carla(trial_num,log_dir):
 
     def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
         M_x_des = np.hstack((leg_des.encode(X_des), leg_des.encode(Y_des)))
-        temp_X, temp_Y = get_Mx(M_u,M_x_des,leg,sys,Np,N, model_norm, option='nodirect', data='X')
+        temp_X, temp_Y = get_Mx(M_u,M_x_des,leg,sys,Np,N, model_norm, option='nondirect', data='X')
 
         # X_global = np.zeros(temp_X.shape)
         # Y_global = np.zeros(temp_Y.shape)
