@@ -11,6 +11,8 @@ import time
 from Shared.logging_utils import save_plot
 import random
 import torch.nn as nn
+from pathlib import Path
+
 
 
 def simulate_carla(trial_num,log_dir):
@@ -127,9 +129,15 @@ def simulate_carla(trial_num,log_dir):
     Steps = config['steps']
     window_steps = Np
     model_norm = SimpleNN(N,2*N)
-    model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
+    current_file = Path(__file__).resolve()
+    project_root = current_file.parents[2]  # Carla_MPC/
+    model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-07-24_17-24-41" / "models" / "model_trial_0"
+    model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
+    #model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
     model_norm.eval()
     model_norm = model_norm.to('cpu')
+
+
     model_residual = SimpleNN(input_size=N, output_size=2 * N)
     criterion = nn.MSELoss()
     online_lr = config['online_lr']

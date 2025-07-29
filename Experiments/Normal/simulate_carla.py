@@ -33,7 +33,7 @@ def simulate_carla(trial_num,log_dir):
 
 
     def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
-        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='nodirect', data='X')
+        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='nondirect', data='X')
 
         # X_global = np.zeros(temp_X.shape)
         # Y_global = np.zeros(temp_Y.shape)
@@ -167,7 +167,7 @@ def simulate_carla(trial_num,log_dir):
     kd = 0.1
     ki = 0.2
 
-    desired_speed = 4.0
+    desired_speed = 15.0
     previous_speed = 0.0
 
     try:

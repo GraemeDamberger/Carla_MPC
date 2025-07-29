@@ -106,6 +106,7 @@ class bike:
         x_dot[0] = v * np.cos(x[2])
         x_dot[1] = v * np.sin(x[2])
         x_dot[2] = (v / self.L) * np.tan(u)
+        #x_dot[2] = u
         return x+x_dot*self.dt
 
 class LMU:

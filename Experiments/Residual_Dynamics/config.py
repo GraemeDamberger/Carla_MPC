@@ -12,8 +12,8 @@ config = {
     "learning_rate": 0.5e-5, #1e-6
     "scale_V": 5, #50
     "buffer_size": 1000,
-    "online_lr": 1e-7,
-    "online_weight_decay": 1e-5,
+    "online_lr": 1e-8, #1e-7
+    "online_weight_decay": 1e-5, #1e-5
 
 # Controller
     "Np": 50, #50

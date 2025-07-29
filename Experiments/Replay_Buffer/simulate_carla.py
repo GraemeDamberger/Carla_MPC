@@ -12,6 +12,7 @@ from Shared.logging_utils import save_plot, save_model
 import random
 import copy
 import torch.nn as nn
+from pathlib import Path
 
 
 
@@ -132,7 +133,12 @@ def simulate_carla(trial_num,log_dir):
     batch_size = config['batch_size']
     window_steps = Np
     model_norm = SimpleNN(N,2*N)
-    model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
+    #norm_path = "C:\Users\graeme\Waterloo\Carla_MPC\Experiments\Normal\logs\run_2025-07-24_17-24-41\models\model_trial_0"
+    current_file = Path(__file__).resolve()
+    project_root = current_file.parents[2]  # Carla_MPC/
+    model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-07-24_17-24-41" / "models" / "model_trial_0"
+    model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
+    #model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
     model_norm.eval()
     model_norm = model_norm.to('cpu')
     model_copy = copy.deepcopy(model_norm)
@@ -236,7 +242,7 @@ def simulate_carla(trial_num,log_dir):
             s0 = s0 + current_speed * dt
             x_mpc_ref, y_mpc_ref = get_mpc_reference(X_des[0, :], X_des[1, :], current_speed, s0, Np, dt)
             x_ref_local, y_ref_local = global_to_local(x_mpc_ref, y_mpc_ref, X[0,i - 1], X[1,i - 1], X[2,i - 1])
-            res = minimize(cost_fun, M_u, method='SLSQP', args=(X[:,i - 1], current_speed, x_ref_local, y_ref_local, leg,sys, Np, N, model_norm,Q),
+            res = minimize(cost_fun, M_u, method='SLSQP', args=(X[:,i - 1], current_speed, x_ref_local, y_ref_local, leg,sys, Np, N, model_copy,Q),
                            constraints=U_sampled_constraint, options=options)  # Run optimization
             M_u = res.x
             U = leg.decode(M_u)

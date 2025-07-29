@@ -13,7 +13,7 @@ from Shared.logging_utils import save_plot
 
 
 def simulate_carla(trial_num,log_dir):
-    def get_Mx(M_u,M_x_des, leg,sys, Np,N ,model_norm,option='direct', data='X'):
+    def get_Mx(M_u,M_x_des, leg,sys, Np,N ,model_norm,option='nondirect', data='X'):
         if option == 'direct':
             U = leg.decode(M_u)
             X = np.zeros((Np, 3))
@@ -38,7 +38,7 @@ def simulate_carla(trial_num,log_dir):
 
     def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
         M_x_des = np.hstack((leg_des.encode(X_des), leg_des.encode(Y_des)))
-        temp_X, temp_Y = get_Mx(M_u,M_x_des,leg,sys,Np,N, model_norm, option='nondirect', data='X')
+        temp_X, temp_Y = get_Mx(M_u,M_x_des,leg,sys,Np,N, model_norm, option='direct', data='X')
 
         # X_global = np.zeros(temp_X.shape)
         # Y_global = np.zeros(temp_Y.shape)
@@ -175,7 +175,7 @@ def simulate_carla(trial_num,log_dir):
     ki = 0.2
     kp_tube =  config['kp_tube']
 
-    desired_speed = 4.0
+    desired_speed = 15.0
     previous_speed = 0.0
 
     try:

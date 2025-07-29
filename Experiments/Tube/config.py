@@ -21,7 +21,7 @@ config = {
     "R": 0,
     "kpV":100,
     "kdV": 2,
-    "kp_tube": 0.2,
+    "kp_tube": 0.5,#0.2
     "N_des": 1,
 
 # Plant
@@ -32,7 +32,7 @@ config = {
     "sim_T": 10,
     "ref_steps":100,
     "num_trials":1,
-    "steps": 10000,
+    "steps": 5000,
     "ref_points":1500
 }
 '''

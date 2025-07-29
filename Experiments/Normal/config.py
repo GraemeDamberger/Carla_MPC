@@ -23,14 +23,14 @@ config = {
     "kdV": 2,
 
 # Plant
-    "l": 2.5,
+    "l": 1,
     "dt": 0.01, #0.001
 
 # Simulation
     "sim_T": 10,
     "ref_steps":100,
     "num_trials":1,
-    "steps": 10000,
+    "steps": 5000,
     "ref_points":1500
 }
 '''
