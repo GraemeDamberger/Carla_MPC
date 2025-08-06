@@ -136,7 +136,9 @@ def simulate_carla(trial_num,log_dir):
     #norm_path = "C:\Users\graeme\Waterloo\Carla_MPC\Experiments\Normal\logs\run_2025-07-24_17-24-41\models\model_trial_0"
     current_file = Path(__file__).resolve()
     project_root = current_file.parents[2]  # Carla_MPC/
-    model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-07-24_17-24-41" / "models" / "model_trial_0"
+#    model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-07-24_17-24-41" / "models" / "model_trial_0"
+    model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-07-31_17-00-43" / "models" / "model_trial_0"
+
     model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
     #model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
     model_norm.eval()
@@ -219,7 +221,7 @@ def simulate_carla(trial_num,log_dir):
     kd = 0.1
     ki = 0.2
 
-    desired_speed = 4.0
+    desired_speed = 15.0
     previous_speed = 0.0
 
     try:
@@ -346,5 +348,5 @@ def simulate_carla(trial_num,log_dir):
 
     save_model(log_dir, model_copy, f"model_online_trial_{trial_num}")
 
-    return np.sqrt(np.mean(error ** 2))
+    return np.sqrt(np.mean(error_array ** 2))
 

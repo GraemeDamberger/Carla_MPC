@@ -41,18 +41,19 @@ model = model.to('cpu')
 out_index = 0
 num_samples = 1000
 mu_samples = np.linspace(-np.pi / 2.5, np.pi / 2.5, num_samples)
-M_u = np.zeros(5)
+M_u = np.zeros(N)
 out_data_direct = np.zeros((5, num_samples))
 out_data_neural = np.zeros((5, num_samples))
 
-for mu_i in range(5):
+for mu_i in range(N):
     for sample_i in range(num_samples):
-        M_u = np.zeros(5)
+
+        M_u = -np.ones(N)
         M_u[mu_i] = mu_samples[sample_i]
         out_data_direct[mu_i, sample_i] = get_Mx(M_u, 'direct')[0][out_index]
-        out_data_neural[mu_i, sample_i] = get_Mx(M_u, 'npdirect')[0][out_index]
+        out_data_neural[mu_i, sample_i] = get_Mx(M_u, 'nodirect')[0][out_index]
 
-for i in range(5):
+for i in range(N):
     plt.plot(mu_samples, out_data_direct[i, :])
     plt.plot(mu_samples, out_data_neural[i, :])
     plt.legend(["Direct", "Neural"])

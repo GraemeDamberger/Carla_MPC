@@ -267,4 +267,4 @@ def simulate_carla(trial_num,log_dir):
 
 
 
-    return np.sqrt(np.mean(error ** 2))
+    return np.sqrt(np.mean(error_array ** 2))

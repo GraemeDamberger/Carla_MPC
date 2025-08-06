@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import time
 from Shared.logging_utils import save_plot
+from pathlib import Path
 
 
 
@@ -86,18 +87,24 @@ def simulate_carla(trial_num,log_dir):
 
     Q = config["Q"] * np.eye(Np)
     R = config["R"] * np.eye(Np)
-
     sys = bike(L,dt)
 
     Steps = config['steps']
 
     model_norm = SimpleNN(N,2*N)
-    model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
+    if config['hyp_opt'] == True:
+        model_norm.load_state_dict(state_dict=torch.load(config['opt_model_path'], weights_only=True))
+    else:
+        current_file = Path(__file__).resolve()
+        project_root = current_file.parents[2]  # Carla_MPC/
+        model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-08-01_14-51-18" / "models" / "model_trial_0"
+        model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
+        #model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
     model_norm.eval()
     model_norm = model_norm.to('cpu')
 
     options = {
-            'eps': 0.001, #0.001
+            'eps': config["eps"], #0.001
             #    'maxiter': 5
         }
     error_array = np.zeros((Steps, 2))
@@ -110,6 +117,7 @@ def simulate_carla(trial_num,log_dir):
     settings = world.get_settings()
     settings.synchronous_mode = True
     settings.fixed_delta_seconds = dt
+    settings.random_seed = config["seed"]
     world.apply_settings(settings)
 
     world.tick()
@@ -172,7 +180,7 @@ def simulate_carla(trial_num,log_dir):
 
     try:
         for i in range(1, Steps):
-            if i % (Steps / 100) == 0:
+            if i % (Steps / 5) == 0:
                 print(f'{100 * i / Steps}%')
             # Speed control stuff
             velocity = vehicle.get_velocity()
@@ -224,15 +232,15 @@ def simulate_carla(trial_num,log_dir):
                 camera.stop()
                 camera.destroy()
         vehicle.destroy()
-
-    #plot_save_path = config['tracking_plot_location']
-    fig = plt.figure()
-    plt.plot(V)
-    plt.plot(desired_speed * np.ones(len(V)))
-    plt.legend(['V', 'V_des'])
-    save_plot(log_dir,fig,f"velocity_plot_trial_{trial_num}")
-    #plt.savefig(os.path.join(plot_save_path, f"velocity_plot_trial{trial_num}.png"))
-    #plt.show()
+    if config['hyp_opt'] != True:
+        #plot_save_path = config['tracking_plot_location']
+        fig = plt.figure()
+        plt.plot(V)
+        plt.plot(desired_speed * np.ones(len(V)))
+        plt.legend(['V', 'V_des'])
+        save_plot(log_dir,fig,f"velocity_plot_trial_{trial_num}")
+        #plt.savefig(os.path.join(plot_save_path, f"velocity_plot_trial{trial_num}.png"))
+        #plt.show()
 
     fig = plt.figure()
     plt.plot(X[0, :], X[1, :])
@@ -244,15 +252,15 @@ def simulate_carla(trial_num,log_dir):
     #plt.savefig(os.path.join(plot_save_path, f"tracking_plot_trial{trial_num}.png"))
     save_plot(log_dir,fig,f"tracking_plot_trial_{trial_num}")
     #plt.show()
-
-    fig = plt.figure()
-    plt.plot(U_mem)
-    plt.title('Control')
-    save_plot(log_dir,fig,f"control_plot_trial_{trial_num}")
-    #plt.savefig(os.path.join(plot_save_path, f"control_plot_trial{trial_num}.png"))
-    #plt.show()
-
-
+    if config['hyp_opt'] != True:
+        fig = plt.figure()
+        plt.plot(U_mem)
+        plt.title('Control')
+        save_plot(log_dir,fig,f"control_plot_trial_{trial_num}")
+        #plt.savefig(os.path.join(plot_save_path, f"control_plot_trial{trial_num}.png"))
+        #plt.show()
 
 
-    return np.sqrt(np.mean(error ** 2))
+
+
+    return np.sqrt(np.mean(error_array ** 2))

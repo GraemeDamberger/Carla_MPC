@@ -33,7 +33,7 @@ config = {
     "sim_T": 10,
     "ref_steps":100,
     "num_trials":1,
-    "steps": 10000,
+    "steps": 5000,
     "ref_points":1500
 }
 '''
