@@ -98,8 +98,8 @@ def simulate_carla(trial_num,log_dir):
         current_file = Path(__file__).resolve()
         project_root = current_file.parents[2]  # Carla_MPC/
         model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-08-01_14-51-18" / "models" / "model_trial_0"
-        model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
-        #model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
+        #model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
+        model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
     model_norm.eval()
     model_norm = model_norm.to('cpu')
 

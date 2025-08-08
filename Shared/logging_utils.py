@@ -17,8 +17,8 @@ def create_log_dir(base="logs"):
     return log_dir
 
 
-def save_config(log_dir, config_dict):
-    config_path = Path(log_dir) / "config.yaml"
+def save_config(log_dir, config_dict, name = "config.yaml"):
+    config_path = Path(log_dir) / name
     with open(config_path, 'w') as f:
         yaml.dump(config_dict, f)
 

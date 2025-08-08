@@ -3,12 +3,12 @@ import torch.nn as nn
 
 config = {
 # Model and training
-    "samples":500000,
+    "samples":1000000,
     "batch_size": 64,
-    "epochs": 1000,
+    "epochs": 2000,
     "data_path":"Data/Training_Data/training_set.npy",
     "model_path":"Data/model.pth",
-    "weight_decay": 8e-3, #5e-2
+    "weight_decay": 16e-3, #5e-2
     "learning_rate": 0.5e-3, #1e-6
     "scale_V": 5, #50
 
@@ -39,7 +39,7 @@ config = {
     "hyp_opt":False,
     "opt_model_path":"logs/run_2025-08-01_14-51-18/models/model_trial_0.pth",
 }
-'''
+
 class SimpleNN(nn.Module):
     def __init__(self, input_size, output_size):
         super().__init__()
@@ -64,6 +64,7 @@ class SimpleNN(nn.Module):
         )
     def forward(self, x):
         return self.net(x)
+'''
 '''
 class SimpleNN(nn.Module):
     def __init__(self, input_size, output_size):

@@ -49,7 +49,7 @@ def train(trial_num,log_dir):
     weight_decay = config['weight_decay']
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=10, verbose=True
+        optimizer, mode='min', factor=0.8, patience=20, verbose=True
     )
     num_epochs = config['epochs']
     train_losses = []
