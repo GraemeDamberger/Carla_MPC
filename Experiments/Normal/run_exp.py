@@ -9,7 +9,7 @@ from Shared.logging_utils import (
 )
 from hyp_opt import hyp_opt
 
-test_switch = 1
+test_switch = 0
 
 if test_switch == 0:
     log_dir = create_log_dir()

@@ -8,7 +8,7 @@ config = {
     "epochs": 2000,
     "data_path":"Data/Training_Data/training_set.npy",
     "model_path":"Data/model.pth",
-    "weight_decay": 16e-3, #5e-2
+    "weight_decay": 50e-3, #5e-2
     "learning_rate": 0.5e-3, #1e-6
     "scale_V": 5, #50
 
