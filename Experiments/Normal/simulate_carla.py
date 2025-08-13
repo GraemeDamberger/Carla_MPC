@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 def simulate_carla(trial_num,log_dir):
-    def get_Mx(M_u, leg,sys, Np,N ,model_norm,option='direct', data='X'):
+    def get_Mx(M_u, leg,sys, Np,N ,model_norm,option='nodirect', data='X'):
 
         if option == 'direct':
             U = leg.decode(M_u)
@@ -175,7 +175,7 @@ def simulate_carla(trial_num,log_dir):
     kd = 0.1
     ki = 0.2
 
-    desired_speed = 15.0
+    desired_speed = 20.0
     previous_speed = 0.0
 
     try:
