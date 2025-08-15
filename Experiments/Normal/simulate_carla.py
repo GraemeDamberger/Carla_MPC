@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import time
 from Shared.logging_utils import save_plot
 from pathlib import Path
+import cv2
 
 
 
@@ -76,6 +77,13 @@ def simulate_carla(trial_num,log_dir):
         #sample_points = np.sort(np.random.uniform(0,int(Np/dt),num_sample_points)).astype(int)
         return np.matmul(leg.P[sample_points,:],M_u)
 
+    def process_image(image):
+        # Convert CARLA raw image to numpy array
+        array = np.frombuffer(image.raw_data, dtype=np.uint8)
+        array = array.reshape((image.height, image.width, 4))  # BGRA
+        array = array[:, :, :3]  # drop alpha
+        array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
+        out.write(array)  # write frame to video
 
     N = config['N']
     L = config['l']
@@ -132,10 +140,31 @@ def simulate_carla(trial_num,log_dir):
 
     camera = world.spawn_actor(camera_bp, camera_transform, attach_to=vehicle)
 
-    #camera.listen(lambda image: image.save_to_disk('images/%06d.png' % image.frame))
+    if config['record'] == True:
+        frame_width = 800  # set your camera width
+        frame_height = 600  # set your camera height
+        fps = 1.0 / dt  # match your control loop timestep
+        video_dir = Path(log_dir) / "videos"
+        video_dir.mkdir(parents=True, exist_ok=True)
+        video_path = video_dir / f"simulation_{trial_num}.mp4"
+        out = cv2.VideoWriter(str(video_path), cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
+        camera.listen(process_image)
+        #camera.listen(lambda image: image.save_to_disk('images/%06d.png' % image.frame))
+
+    spectator = world.get_spectator()
+
+    # Function to keep spectator in third-person view
+    def update_spectator():
+        transform = vehicle.get_transform()
+        # Position camera 8 meters behind and 3 meters above the car
+        spectator_location = transform.location - transform.get_forward_vector() * 8
+        spectator_location.z += 3
+        spectator_transform = carla.Transform(spectator_location, transform.rotation)
+        spectator.set_transform(spectator_transform)
+
+
 
     world.tick()
-
     ref_points = config["ref_points"]  # Made big, for full sim
     waypoints = get_waypoints_from_vehicle(vehicle, num_points=ref_points)
     for wp in waypoints:
@@ -219,18 +248,21 @@ def simulate_carla(trial_num,log_dir):
             V.append(current_speed)
 
             world.tick()
-
+            update_spectator()
             X_curr = vehicle.get_location()
             world.debug.draw_point(X_curr, size=0.1, color=carla.Color(r=0, g=0, b=255), life_time=500.0)
 
             theta = np.deg2rad(vehicle.get_transform().rotation.yaw)
             X[:, i] = np.array([X_curr.x, X_curr.y, theta])
             error_array[i - 1,:] = np.array([x_mpc_ref[0], y_mpc_ref[0]]) - X[:2,i - 1]
+
     finally:
         if (vehicle is not None):
             if camera is not None:
                 camera.stop()
                 camera.destroy()
+                if config['record'] == True:
+                    out.release()
         vehicle.destroy()
     if config['hyp_opt'] != True:
         #plot_save_path = config['tracking_plot_location']

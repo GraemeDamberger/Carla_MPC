@@ -48,7 +48,7 @@ out_data_neural = np.zeros((5, num_samples))
 for mu_i in range(N):
     for sample_i in range(num_samples):
 
-        M_u = -1*np.ones(N)
+        M_u = -0*np.ones(N)
         M_u[mu_i] = mu_samples[sample_i]
         out_data_direct[mu_i, sample_i] = get_Mx(M_u, 'direct')[0][out_index]
         out_data_neural[mu_i, sample_i] = get_Mx(M_u, 'nodirect')[0][out_index]

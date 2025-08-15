@@ -23,7 +23,6 @@ from torch.utils.data import DataLoader, TensorDataset
 
 import time as timer
 from torch.utils.data import TensorDataset, random_split, DataLoader
-import nengo
 
 from scipy.interpolate import interp1d
 import yaml
