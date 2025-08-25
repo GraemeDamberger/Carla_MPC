@@ -184,8 +184,8 @@ def simulate_carla(trial_num,log_dir):
 
     num_sample_points = 5
     sample_points = np.linspace(0,Np,num_sample_points).astype(int)
-    U_lb = -np.pi/5 * np.ones(num_sample_points)
-    U_ub = np.pi/5 * np.ones(num_sample_points)
+    U_lb = -np.pi/2.5 * np.ones(num_sample_points)
+    U_ub = np.pi/2.5 * np.ones(num_sample_points)
 
     U_sampled_constraint = NonlinearConstraint(constraint_decode_specific_points,U_lb,U_ub)
 
@@ -204,7 +204,7 @@ def simulate_carla(trial_num,log_dir):
     kd = 0.1
     ki = 0.2
 
-    desired_speed = 30.0
+    desired_speed = 15.0
     previous_speed = 0.0
 
     try:
