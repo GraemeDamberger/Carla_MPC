@@ -15,17 +15,18 @@ config = {
 # Controller
     "Np": 50, #50
     "N": 5,
-    "M_u_lb":-np.pi/2.5,#-np.pi/2.5,
-    "M_u_ub":np.pi/2.5,#np.pi/2.5,
+    "M_u_lb":-np.pi/3,#-np.pi/2.5,
+    "M_u_ub":np.pi/3,#np.pi/2.5,
     "Q": 70.6388,#1e1,
     "R": 0,
     "kpV":100,
     "kdV": 2,
     "eps": 0.0007,#0.001,
+    "alpha": 0, # For feedback mixing, alpha = 1: open loop, alpha = 0: closed loop
 
 # Plant
     "l": 1,
-    "dt": 0.01, #0.001
+    "dt": 0.005, #0.001
 
 # Simulation
     "sim_T": 10,

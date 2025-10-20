@@ -84,7 +84,16 @@ def simulate_carla(trial_num,log_dir):
         array = array[:, :, :3]  # drop alpha
         array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
         out.write(array)  # write frame to video
-
+    def feedback_mix(M_u, model_norm, leg, X_measure, Y_measure, alpha):
+        input_leg = torch.tensor(M_u, dtype=torch.float32)
+        MX_pred = np.array(model_norm(input_leg))
+        MX_pred = 1 / scale_V * V * MX_pred
+        model_pred = leg.decode(MX_pred)
+        X_model = model_pred[:N]
+        Y_model = model_pred[N:]
+        X_mix = X_model * alpha + X_measure * (1 - alpha)
+        Y_mix = Y_model * alpha + Y_measure * (1 - alpha)
+        return X_mix, Y_mix
     N = config['N']
     L = config['l']
     dt = config['dt']
@@ -92,7 +101,7 @@ def simulate_carla(trial_num,log_dir):
     scale_V = config['scale_V']
     kpV = config['kpV']
     kdV = config['kdV']
-
+    alpha = config['alpha']
     Q = config["Q"] * np.eye(Np)
     R = config["R"] * np.eye(Np)
     sys = bike(L,dt)
@@ -161,7 +170,6 @@ def simulate_carla(trial_num,log_dir):
         spectator_location.z += 3
         spectator_transform = carla.Transform(spectator_location, transform.rotation)
         spectator.set_transform(spectator_transform)
-
 
 
     world.tick()
@@ -253,6 +261,7 @@ def simulate_carla(trial_num,log_dir):
             world.debug.draw_point(X_curr, size=0.1, color=carla.Color(r=0, g=0, b=255), life_time=500.0)
 
             theta = np.deg2rad(vehicle.get_transform().rotation.yaw)
+            #X_mix, Y_mix = feedback_mix(M_u, model_norm, leg, X_curr.x, X_curr.y, alpha)
             X[:, i] = np.array([X_curr.x, X_curr.y, theta])
             error_array[i - 1,:] = np.array([x_mpc_ref[0], y_mpc_ref[0]]) - X[:2,i - 1]
 
