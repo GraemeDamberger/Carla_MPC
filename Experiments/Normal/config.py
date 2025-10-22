@@ -5,34 +5,34 @@ config = {
 # Model and training
     "samples":100000,
     "batch_size": 64,
-    "epochs": 300,
+    "epochs": 500,
     "data_path":"Data/Training_Data/training_set.npy",
     "model_path":"Data/model.pth",
     "weight_decay": 5e-4, #5e-2
     "learning_rate": 0.5e-3, #1e-6
-    "scale_V": 5, #50
+    "scale_V": 50, #50
 
 # Controller
     "Np": 50, #50
     "N": 5,
-    "M_u_lb":-np.pi/3,#-np.pi/2.5,
-    "M_u_ub":np.pi/3,#np.pi/2.5,
-    "Q": 70.6388,#1e1,
+    "M_u_lb":-np.pi/10,#-np.pi/2.5,
+    "M_u_ub":np.pi/10,#np.pi/2.5,
+    "Q": 10,#1e1,
     "R": 0,
     "kpV":100,
     "kdV": 2,
-    "eps": 0.0007,#0.001,
+    "eps": 0.001,#0.001,
     "alpha": 0, # For feedback mixing, alpha = 1: open loop, alpha = 0: closed loop
 
 # Plant
     "l": 1,
-    "dt": 0.005, #0.001
+    "dt": 0.001, #0.001
 
 # Simulation
     "sim_T": 10,
     "ref_steps":100,
     "num_trials":1,
-    "steps": 10000,
+    "steps": 50000,
     "ref_points":1500,
     "seed":26,
     "record": False,
