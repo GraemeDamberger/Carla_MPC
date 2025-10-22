@@ -26,7 +26,7 @@ config = {
 
 # Plant
     "l": 1,
-    "dt": 0.001, #0.001
+    "dt": 0.005, #0.001
 
 # Simulation
     "sim_T": 10,
