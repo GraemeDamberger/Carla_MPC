@@ -46,7 +46,7 @@ def simulate_carla(trial_num,log_dir):
         # temp_X+=X0[0]
         temp_Y =  1 / scale_V * V * temp_Y
         # temp_Y+=X0[1]
-        temp_Ex = temp_X - leg.encode(X_des)
+        temp_Ex = temp_X - leg.encode(X_des) #Do this outside the optimization loop for quicker results
         temp_Ey = temp_Y - leg.encode(Y_des)
         # temp_Ey = leg.encode(X[:,1]-Y_des)
         J_x = np.matmul(temp_Ex, np.matmul(Q, temp_Ex))
@@ -85,8 +85,49 @@ def simulate_carla(trial_num,log_dir):
         array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
         out.write(array)  # write frame to video
 
+    import carla
 
-        return 0
+    import carla
+
+    def draw_trajectory(world, X, Y, color=carla.Color(0, 255, 0), thickness=0.1, lifetime=0.1, z_offset=0.2):
+        """
+        Draws a temporary trajectory in CARLA given X and Y coordinates.
+
+        Parameters:
+        - world: carla.World object
+        - X, Y: arrays or lists of same length
+        - color: carla.Color
+        - thickness: line thickness
+        - lifetime: seconds the line stays visible
+        - z_offset: height above ground for visibility
+        """
+        n = len(X)
+        if n < 2:
+            return
+
+        for i in range(n - 1):
+            start = carla.Location(x=X[i], y=Y[i], z=z_offset)
+            end = carla.Location(x=X[i + 1], y=Y[i + 1], z=z_offset)
+            world.debug.draw_line(start, end, thickness=thickness, color=color, life_time=lifetime)
+        # Example usage in your simulation loop
+        # X = np.linspace(0, 10, 50)
+        # Y = np.sin(X)
+        # draw_trajectory_xy(world, X, Y, color=carla.Color(255,0,0), lifetime=0.1)
+    def feedback_mix(M_u, model_norm, leg, X_measure, Y_measure, alpha, V):
+
+        input_vector = M_u
+        input_leg = torch.tensor(input_vector, dtype=torch.float32)  # .to('cuda')
+        with torch.no_grad():
+            X_pred = np.array(model_norm(input_leg))  # .to('cpu'))
+        temp_X = X_pred[:N]
+        temp_Y = X_pred[N:]
+        temp_X = 1 / scale_V * V * temp_X
+        temp_Y = 1 / scale_V * V * temp_Y
+        X_model = leg.decode(temp_X)
+        Y_model = leg.decode(temp_Y)
+        X_mix = X_model[0] * alpha + X_measure * (1 - alpha)
+        Y_mix = Y_model[0] * alpha + Y_measure * (1 - alpha)
+        return X_mix, Y_mix
     N = config['N']
     L = config['l']
     dt = config['dt']
@@ -94,7 +135,7 @@ def simulate_carla(trial_num,log_dir):
     scale_V = config['scale_V']
     kpV = config['kpV']
     kdV = config['kdV']
-
+    alpha = config['alpha']
     Q = config["Q"] * np.eye(Np)
     R = config["R"] * np.eye(Np)
     sys = bike(L,dt)
@@ -165,7 +206,6 @@ def simulate_carla(trial_num,log_dir):
         spectator.set_transform(spectator_transform)
 
 
-
     world.tick()
     ref_points = config["ref_points"]  # Made big, for full sim
     waypoints = get_waypoints_from_vehicle(vehicle, num_points=ref_points)
@@ -228,6 +268,10 @@ def simulate_carla(trial_num,log_dir):
             # s0 = s0 + np.sqrt( (X[0,i-1] - X[0,i])**2 + (X[0,i-1] - X[0,i])**2 )
             s0 = s0 + current_speed * dt
             x_mpc_ref, y_mpc_ref = get_mpc_reference(X_des[0, :], X_des[1, :], current_speed, s0, Np, dt)
+            temp_x = leg.decode(leg.encode(x_mpc_ref))
+            temp_Y = leg.decode(leg.encode(x_mpc_ref))
+            draw_trajectory(world, x_mpc_ref, y_mpc_ref, color=carla.Color(0, 255, 0), lifetime=0.1)
+
             x_ref_local, y_ref_local = global_to_local(x_mpc_ref, y_mpc_ref, X[0,i - 1], X[1,i - 1], X[2,i - 1])
             res = minimize(cost_fun, M_u, method='SLSQP', args=(X[:,i - 1], current_speed, x_ref_local, y_ref_local, leg,sys, Np, N, model_norm,Q),
                            constraints=U_sampled_constraint, options=options)  # Run optimization
@@ -255,7 +299,8 @@ def simulate_carla(trial_num,log_dir):
             world.debug.draw_point(X_curr, size=0.1, color=carla.Color(r=0, g=0, b=255), life_time=500.0)
 
             theta = np.deg2rad(vehicle.get_transform().rotation.yaw)
-            X[:, i] = np.array([X_curr.x, X_curr.y, theta])
+            X_mix, Y_mix = feedback_mix(M_u, model_norm, leg, X_curr.x, X_curr.y, alpha, current_speed)
+            X[:, i] = np.array([X_mix, Y_mix, theta])
             error_array[i - 1,:] = np.array([x_mpc_ref[0], y_mpc_ref[0]]) - X[:2,i - 1]
 
     finally:
@@ -276,6 +321,39 @@ def simulate_carla(trial_num,log_dir):
         #plt.savefig(os.path.join(plot_save_path, f"velocity_plot_trial{trial_num}.png"))
         #plt.show()
 
+    # --- Trajectory plot ---
+    fig_traj, ax_traj = plt.subplots(figsize=(8, 6))
+    ax_traj.plot(X[0, :], X[1, :], label='Tracked Path', color='blue', linewidth=2)
+    ax_traj.plot(X_des[0, ::5], X_des[1, ::5], 'o', label='Desired Path (sparse)', color='orange', markersize=6)
+    #ax_traj.plot(x_mpc_ref, y_mpc_ref, '.', label='MPC Reference', color='green', markersize=6)
+
+    ax_traj.set_xlabel('X [m]', fontsize=12)
+    ax_traj.set_ylabel('Y [m]', fontsize=12)
+    ax_traj.set_title(f'Trajectory Tracking Trial {trial_num}', fontsize=14)
+    ax_traj.grid(True, linestyle='--', alpha=0.5)
+    ax_traj.legend(fontsize=10)
+    ax_traj.axis('equal')
+    plt.tight_layout()
+
+    # Save trajectory plot
+    save_plot(log_dir, fig_traj, f"tracking_plot_trial_{trial_num}")
+    plt.close(fig_traj)
+
+    # --- Control input plot (only if hyp_opt != True) ---
+    if not config.get('hyp_opt', False):
+        fig_ctrl, ax_ctrl = plt.subplots(figsize=(8, 4))
+        ax_ctrl.plot(U_mem)  # assumes shape (n_inputs, timesteps)
+        ax_ctrl.set_title(f'Control Inputs Trial {trial_num}', fontsize=14)
+        ax_ctrl.set_xlabel('Time step', fontsize=12)
+        ax_ctrl.set_ylabel('Control Value', fontsize=12)
+        ax_ctrl.grid(True, linestyle='--', alpha=0.5)
+        plt.tight_layout()
+
+        # Save control plot
+        save_plot(log_dir, fig_ctrl, f"control_plot_trial_{trial_num}")
+        plt.close(fig_ctrl)
+
+    '''
     fig = plt.figure()
     plt.plot(X[0, :], X[1, :])
     plt.plot(X_des[0, ::5], X_des[1, ::5], '.')
@@ -293,7 +371,7 @@ def simulate_carla(trial_num,log_dir):
         save_plot(log_dir,fig,f"control_plot_trial_{trial_num}")
         #plt.savefig(os.path.join(plot_save_path, f"control_plot_trial{trial_num}.png"))
         #plt.show()
-
+    '''
 
 
 

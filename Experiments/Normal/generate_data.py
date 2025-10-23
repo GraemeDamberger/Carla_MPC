@@ -30,7 +30,6 @@ def generate_data(trial_num,log_dir):
     sample_points = np.linspace(0, Np, num_sample_points).astype(int)
     U_lb = M_u_lb * np.ones(num_sample_points)
     U_ub = M_u_ub * np.ones(num_sample_points)
-    print(M_u_lb)
     sys = bike(l,dt)
     leg = legendre(Np*dt,N,dt)
 
