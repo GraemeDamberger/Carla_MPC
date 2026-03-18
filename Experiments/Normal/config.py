@@ -38,7 +38,7 @@ config = {
 
 # Hyperparameter Tuning
     "hyp_opt":False,
-    "opt_model_path":"logs/run_2025-08-01_14-51-18/models/model_trial_0.pth",
+    "opt_model_path":"logs/run_2025-08-13_15-46-11/models/model_trial_0.pth",
 }
 '''
 class SimpleNN(nn.Module):

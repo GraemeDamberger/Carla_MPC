@@ -280,7 +280,7 @@ def simulate_carla(trial_num,log_dir):
     plt.plot(x_mpc_ref, y_mpc_ref, '.')
     plt.xlabel('X')
     plt.ylabel('Y')
-    plt.legend(['XY', 'XY des'])
+    plt.legend(['Actual Path', 'Reference Path'])
     #plt.savefig(os.path.join(plot_save_path, f"tracking_plot_trial{trial_num}.png"))
     save_plot(log_dir,fig,f"tracking_plot_trial_{trial_num}")
     #plt.show()
