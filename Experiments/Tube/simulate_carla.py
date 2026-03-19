@@ -180,7 +180,7 @@ def simulate_carla(trial_num,log_dir):
 
     try:
         for i in range(1, Steps):
-            if i % (Steps / 100) == 0:
+            if i % (Steps / 10) == 0:
                 print(f'{100 * i / Steps}%')
             # Speed control stuff
             velocity = vehicle.get_velocity()

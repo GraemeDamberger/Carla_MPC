@@ -25,7 +25,7 @@ if test_switch == 0:
 else:
     # int, float, categorical,  loguniform
     #model_path = "Experiments/Normal/logs/run_2025-07-31_17-00-43/models/model_trial_0.pth"
-    model_path = "logs/run_2025-08-13_10-51-52/models/model_trial_0"
+    model_path = "logs/run_2025-10-20_14-13-24/models/model_trial_0"
     param_space = {
         "Q": ("uniform", 1e0, 1e3),
         'eps': ("uniform", 1e-4, 1e-1),

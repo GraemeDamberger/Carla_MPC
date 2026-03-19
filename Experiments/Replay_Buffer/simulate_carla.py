@@ -137,7 +137,7 @@ def simulate_carla(trial_num,log_dir):
     current_file = Path(__file__).resolve()
     project_root = current_file.parents[2]  # Carla_MPC/
 #    model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-07-24_17-24-41" / "models" / "model_trial_0"
-    model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-07-31_17-00-43" / "models" / "model_trial_0"
+    model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2026-03-19_11-00-55" / "models" / "model_trial_0"
 
     model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
     #model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
@@ -226,7 +226,7 @@ def simulate_carla(trial_num,log_dir):
 
     try:
         for i in range(1, Steps):
-            if i % (Steps / 100) == 0:
+            if i % (Steps / 10) == 0:
                 print(f'{100 * i / Steps}%')
             # Speed control stuff
             velocity = vehicle.get_velocity()

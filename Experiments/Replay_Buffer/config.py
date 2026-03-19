@@ -3,14 +3,14 @@ import torch.nn as nn
 
 config = {
 # Model and training
-    "samples": 100000,
+    "samples": 100000, #100000
     "batch_size": 64,
-    "epochs": 100,
+    "epochs": 500, #500
     "data_path":"Data/Training_Data/training_set.npy",
     "model_path":"Data/model.pth",
-    "weight_decay": 2e-3, #5e-2
-    "learning_rate": 0.5e-5, #1e-6
-    "scale_V": 5, #50
+    "weight_decay": 5e-4, #5e-2
+    "learning_rate": 0.5e-4, #1e-6
+    "scale_V": 50, #50
     "buffer_size": 1000,
     "online_lr": 1e-9, #1e-8
     "online_weight_decay": 1e-2, #1e-2
@@ -18,22 +18,22 @@ config = {
 # Controller
     "Np": 50, #50
     "N": 5,
-    "M_u_lb":-np.pi/2.5,
-    "M_u_ub":np.pi/2.5,
+    "M_u_lb":-np.pi/10,
+    "M_u_ub":np.pi/10,
     "Q": 1e1,
     "R": 0,
     "kpV":100,
     "kdV": 2,
 
 # Plant
-    "l": 2.5,
-    "dt": 0.01, #0.001
+    "l": 1,
+    "dt": 0.005, #0.001
 
 # Simulation
-    "sim_T": 10,
+    "sim_T": 1000,
     "ref_steps":100,
     "num_trials":1,
-    "steps": 5000,
+    "steps": 10000,
     "ref_points":1500
 }
 '''
