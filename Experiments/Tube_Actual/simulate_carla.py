@@ -123,22 +123,11 @@ def simulate_carla(trial_num,log_dir):
         # X = np.linspace(0, 10, 50)
         # Y = np.sin(X)
         # draw_trajectory_xy(world, X, Y, color=carla.Color(255,0,0), lifetime=0.1)
-    def tube_error(U, X0,Y0):
-        temp_X, temp_Y = get_Mx(M_u, leg, sys, Np, N, model_norm, option='nondirect', data='X')
-
-        # X_global = np.zeros(temp_X.shape)
-        # Y_global = np.zeros(temp_Y.shape)
-        # for i in range(len(temp_X)):
-        #    X_global[i],Y_global[i] =  local_to_global(temp_X[i],temp_Y[i],X0[2])
-
-        temp_X = 1 / scale_V * V * temp_X
-        # temp_X+=X0[0]
-        temp_Y = 1 / scale_V * V * temp_Y
-        X_nominal = leg.decode(temp_X)[0]
-        Y_nominal = leg.decode(temp_Y)[0]
-        E_x = X_nominal - X0
-        E_y = Y_nominal - Y0
-        return E_x, E_y
+    def tube_control(sys, X_prev, X_current, V, U_nom, K):
+        X_hat = sys.dynamics(X_prev, V, U_nom)
+        e = X_current - X_hat
+        U_tube = float(K @ e)
+        return U_tube
     N = config['N']
     L = config['l']
     dt = config['dt']
@@ -151,6 +140,7 @@ def simulate_carla(trial_num,log_dir):
     R = config["R"] * np.eye(Np)
     sys = bike(L,dt)
 
+    K_tube = np.array([0.0, 0.0, -1.0])
     Steps = config['steps']
 
     model_norm = SimpleNN(N,2*N)
@@ -159,9 +149,11 @@ def simulate_carla(trial_num,log_dir):
     else:
         current_file = Path(__file__).resolve()
         project_root = current_file.parents[2]  # Carla_MPC/
-        model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-08-01_14-51-18" / "models" / "model_trial_0"
-        #model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
-        model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
+        #model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-08-01_14-51-18" / "models" / "model_trial_0"
+        model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2026-03-19_11-00-55" / "models" / "model_trial_0"
+
+        model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
+        #model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
     model_norm.eval()
     model_norm = model_norm.to('cpu')
 
@@ -289,7 +281,11 @@ def simulate_carla(trial_num,log_dir):
             M_u = res.x
             U = leg.decode(M_u)
             U_mem.append(U[0])
-            U_steer = U[0]
+            U_mpc = U[0]
+
+            U_tube = tube_control(sys, X[:, i-2], X[:, i-1], current_speed,U_mpc,K_tube)
+
+            U_steer = U_mpc + U_tube
 
             brake = 0.0
             if current_speed - desired_speed > 2.0:  # Do i need this??

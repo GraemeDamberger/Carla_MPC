@@ -29,10 +29,10 @@ config = {
     "dt": 0.005, #0.001
 
 # Simulation
-    "sim_T": 10,
+    "sim_T": 1000,
     "ref_steps":100,
     "num_trials":1,
-    "steps": 1000,
+    "steps": 10000,
     "ref_points":1500,
     "seed":26,
     "record": False,
