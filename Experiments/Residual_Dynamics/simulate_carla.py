@@ -1,5 +1,6 @@
 import carla
 from Experiments.Residual_Dynamics.config import config
+from Experiments.Residual_Dynamics.config import ResidualNN
 from Experiments.Residual_Dynamics.config import SimpleNN
 from Shared.funcs import bike, legendre, get_mpc_reference, global_to_local, local_to_global
 import torch
@@ -59,7 +60,7 @@ def simulate_carla(trial_num,log_dir):
 
     def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
         input_leg = torch.tensor(M_u, dtype=torch.float32)
-        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='nodirect', data='X')
+        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='direct', data='X')
         M_d = np.array(model_residual(input_leg).detach())  # .to('cpu'))
 
         # X_global = np.zeros(temp_X.shape)
@@ -140,7 +141,7 @@ def simulate_carla(trial_num,log_dir):
     model_norm = model_norm.to('cpu')
 
 
-    model_residual = SimpleNN(input_size=N, output_size=2 * N)
+    model_residual = ResidualNN(input_size=N, output_size=2 * N)
     criterion = nn.MSELoss()
     online_lr = config['online_lr']
     online_weight_decay = config['online_weight_decay']
@@ -306,6 +307,7 @@ def simulate_carla(trial_num,log_dir):
 
                     res_pred = model_residual(input_data)
                     loss = criterion(res_pred, res_target)
+                    optim.zero_grad()
                     loss.backward()
                     optim.step()
     finally:

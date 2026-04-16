@@ -12,7 +12,7 @@ config = {
     "learning_rate": 0.5e-5, #1e-6
     "scale_V": 50, #50
     "buffer_size": 1000,
-    "online_lr": 1e-9, #1e-7
+    "online_lr": 1e-8, #1e-7
     "online_weight_decay": 1e-5, #1e-5
 
 # Controller
@@ -26,7 +26,7 @@ config = {
     "kdV": 2,
 
 # Plant
-    "l": 1,
+    "l": 2.5,
     "dt": 0.005, #0.001
 
 # Simulation
@@ -59,5 +59,20 @@ class SimpleNN(nn.Module):
             nn.Tanh(),
             nn.Linear(500, output_size)
         )
+    def forward(self, x):
+        return self.net(x)
+class ResidualNN(nn.Module):
+    def __init__(self, input_size, output_size):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_size, 500),
+            nn.Tanh(),
+            nn.Linear(500, 500),
+            nn.Tanh(),
+            nn.Linear(500, output_size)
+        )
+        nn.init.zeros_(self.net[-1].weight)
+        nn.init.zeros_(self.net[-1].bias)
+
     def forward(self, x):
         return self.net(x)

@@ -3,9 +3,9 @@ import torch.nn as nn
 
 config = {
 # Model and training
-    "samples":250000,
+    "samples":500000,
     "batch_size": 64,
-    "epochs": 500,
+    "epochs": 1000,
     "data_path":"Data/Training_Data/training_set.npy",
     "model_path":"Data/model.pth",
     "weight_decay": 5e-4, #5e-2
@@ -25,7 +25,7 @@ config = {
     "alpha": 0, # For feedback mixing, alpha = 1: open loop, alpha = 0: closed loop
 
 # Plant
-    "l": 1,
+    "l": 0.2,
     "dt": 0.005, #0.001
 
 # Simulation

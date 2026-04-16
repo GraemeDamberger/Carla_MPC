@@ -18,6 +18,7 @@ def simulate_carla(trial_num,log_dir):
     def get_Mx(M_u, leg,sys, Np,N ,model_norm,option='nodirect', data='X'):
 
         if option == 'direct':
+
             U = leg.decode(M_u)
             X = np.zeros((Np, 3))
             for i in range(1, Np):
@@ -35,7 +36,7 @@ def simulate_carla(trial_num,log_dir):
 
 
     def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
-        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='nondirect', data='X')
+        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='direct', data='X')
 
         # X_global = np.zeros(temp_X.shape)
         # Y_global = np.zeros(temp_Y.shape)
@@ -126,6 +127,7 @@ def simulate_carla(trial_num,log_dir):
 
     N = config['N']
     L = config['l']
+    print(L)
     dt = config['dt']
     Np = config['Np']
     scale_V = config['scale_V']

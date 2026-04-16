@@ -35,7 +35,7 @@ def simulate_carla(trial_num,log_dir):
 
 
     def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
-        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='nondirect', data='X')
+        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='direct', data='X')
 
         # X_global = np.zeros(temp_X.shape)
         # Y_global = np.zeros(temp_Y.shape)
@@ -140,7 +140,7 @@ def simulate_carla(trial_num,log_dir):
     R = config["R"] * np.eye(Np)
     sys = bike(L,dt)
 
-    K_tube = np.array([0.0, 0.0, -1.0])
+    K_tube = np.array(config['K_tube'])
     Steps = config['steps']
 
     model_norm = SimpleNN(N,2*N)
