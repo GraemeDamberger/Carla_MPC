@@ -126,9 +126,9 @@ def simulate_carla(trial_num,log_dir):
     def tube_control(sys, X_prev, X_current, V, U_nom, K, adaptive):
         X_hat = sys.dynamics(X_prev, V, U_nom)
         e = X_current - X_hat
-        U_adapt = float(adaptive.forward_control(X_current))
+        U_adapt = float(adaptive.forward_control(X_current[2]))
         U_tube = float(K @ e)
-        adaptive.update(X_current, e, dt)
+        adaptive.update(X_current[2], -e[2], dt)
         return U_tube + U_adapt
 
     class AdaptiveRBFController:
@@ -176,7 +176,8 @@ def simulate_carla(trial_num,log_dir):
             x shape: (nx,)
             returns phi shape: (nb,)
             """
-            diff = self.centers - x[None, :]
+#            diff = self.centers - x[None, :]
+            diff = self.centers - x
             sq_norm = np.sum(diff ** 2, axis=1)
 
             phi = np.exp(-sq_norm / (2 * self.sigma ** 2))
@@ -216,8 +217,10 @@ def simulate_carla(trial_num,log_dir):
             basis = self.phi(x)  # (nb,)
 
             # use first nu dimensions of error
-            err = e[:self.nu]
-            print(x)
+#            err = e[:self.nu]
+            err = e
+
+            #print(x)
             # outer product => (nb, nu)
             dW = self.gamma * np.outer(basis, err)
 
@@ -290,7 +293,7 @@ def simulate_carla(trial_num,log_dir):
         state_dim=1,
         control_dim=1,
         num_basis=50,
-        gamma=8.0,
+        gamma=80.0,
         sigma=0.7
     )
     if config['record'] == True:

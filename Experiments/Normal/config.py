@@ -25,7 +25,7 @@ config = {
     "alpha": 0, # For feedback mixing, alpha = 1: open loop, alpha = 0: closed loop
 
 # Plant
-    "l": 0.2,
+    "l": 2.5,
     "dt": 0.005, #0.001
 
 # Simulation

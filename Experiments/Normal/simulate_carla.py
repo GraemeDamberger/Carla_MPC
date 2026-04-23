@@ -127,7 +127,6 @@ def simulate_carla(trial_num,log_dir):
 
     N = config['N']
     L = config['l']
-    print(L)
     dt = config['dt']
     Np = config['Np']
     scale_V = config['scale_V']
