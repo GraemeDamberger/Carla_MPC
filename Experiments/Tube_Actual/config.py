@@ -24,7 +24,9 @@ config = {
     "eps": 0.001,#0.001,
     "alpha": 0, # For feedback mixing, alpha = 1: open loop, alpha = 0: closed loop
     "K_tube": [0.0, 0.0, -10.0],
-# Plant
+    "translational_force": 0,
+    "steering_force": 0.25,
+    # Plant
     "l": 2.5,
     "dt": 0.005, #0.001
 

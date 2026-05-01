@@ -136,6 +136,8 @@ def simulate_carla(trial_num,log_dir):
     Q = config["Q"] * np.eye(Np)
     R = config["R"] * np.eye(Np)
     sys = bike(L,dt)
+    translational_force = config['translational_force']
+    steering_force = config['steering_force']
 
     Steps = config['steps']
 
@@ -275,7 +277,7 @@ def simulate_carla(trial_num,log_dir):
             M_u = res.x
             U = leg.decode(M_u)
             U_mem.append(U[0])
-            U_steer = U[0]
+            U_steer = U[0] + steering_force
 
             brake = 0.0
             if current_speed - desired_speed > 2.0:  # Do i need this??
@@ -289,6 +291,8 @@ def simulate_carla(trial_num,log_dir):
             control.steer = U_steer #res.x[0]
             vehicle.apply_control(control)
             V.append(current_speed)
+            wind_force = carla.Vector3D(x=0.0, y=translational_force, z=0.0)
+            vehicle.add_force(wind_force)
 
             world.tick()
             update_spectator()

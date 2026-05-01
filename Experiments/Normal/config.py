@@ -23,6 +23,9 @@ config = {
     "kdV": 2,
     "eps": 0.001,#0.001,
     "alpha": 0, # For feedback mixing, alpha = 1: open loop, alpha = 0: closed loop
+    "translational_force": 0,
+    "steering_force": 0.25,
+
 
 # Plant
     "l": 2.5,
