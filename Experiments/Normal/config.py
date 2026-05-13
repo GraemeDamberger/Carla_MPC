@@ -3,7 +3,7 @@ import torch.nn as nn
 
 config = {
 # Model and training
-    "samples":500000,
+    "samples":250000,
     "batch_size": 64,
     "epochs": 1000,
     "data_path":"Data/Training_Data/training_set.npy",
@@ -17,7 +17,7 @@ config = {
     "N": 5,
     "M_u_lb":-np.pi/10,#-np.pi/2.5,
     "M_u_ub":np.pi/10,#np.pi/2.5,
-    "Q": 10,#1e1,
+    "Q": 50,#1e1,
     "R": 0,
     "kpV":100,
     "kdV": 2,

@@ -36,7 +36,7 @@ def simulate_carla(trial_num,log_dir):
 
 
     def cost_fun(M_u, X0, V, X_des, Y_des, leg,sys, Np, N, model_norm, Q):
-        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='direct', data='X')
+        temp_X, temp_Y = get_Mx(M_u,leg,sys,Np,N, model_norm, option='nondirect', data='X')
 
         # X_global = np.zeros(temp_X.shape)
         # Y_global = np.zeros(temp_Y.shape)
@@ -147,7 +147,7 @@ def simulate_carla(trial_num,log_dir):
     else:
         current_file = Path(__file__).resolve()
         project_root = current_file.parents[2]  # Carla_MPC/
-        model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-08-01_14-51-18" / "models" / "model_trial_0"
+        model_path = project_root / "Experiments" / "Normal" / "logs" / "run_2025-09-22_17-24-12" / "models" / "model_trial_0"
         #model_norm.load_state_dict(state_dict=torch.load(model_path, weights_only=True))
         model_norm.load_state_dict(state_dict=torch.load(config['model_path'], weights_only=True))
     model_norm.eval()

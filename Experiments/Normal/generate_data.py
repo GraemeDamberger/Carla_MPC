@@ -28,8 +28,8 @@ def generate_data(trial_num,log_dir):
 
     num_sample_points = 10
     sample_points = np.linspace(0, Np, num_sample_points).astype(int)
-    U_lb = M_u_lb * np.ones(num_sample_points)
-    U_ub = M_u_ub * np.ones(num_sample_points)
+    U_lb = -1 * np.ones(num_sample_points)
+    U_ub = 1 * np.ones(num_sample_points)
     sys = bike(l,dt)
     leg = legendre(Np*dt,N,dt)
 
@@ -37,12 +37,12 @@ def generate_data(trial_num,log_dir):
     #Generate data
     data = []
     for i in range(samples):
-        #while(True):
-        #    mu = np.random.uniform(M_u_lb,M_u_ub,N) #Randomly sample control trajectories
-        #    U_temp = constraint_decode_specific_points(mu)
-        #    if np.all((U_temp >= U_lb) & (U_temp <= U_ub)):
-        #        break
-        mu = np.random.uniform(M_u_lb,M_u_ub,N) #Randomly sample control trajectories
+        while(True):
+            mu = np.random.uniform(M_u_lb,M_u_ub,N) #Randomly sample control trajectories
+            U_temp = constraint_decode_specific_points(mu)
+            if np.all((U_temp >= U_lb) & (U_temp <= U_ub)):
+                break
+        #mu = np.random.uniform(M_u_lb,M_u_ub,N) #Randomly sample control trajectories
         x,y = get_Mx(mu, leg,Np,sys, option='direct')
         data.append(np.hstack((mu, x, y)))
 
