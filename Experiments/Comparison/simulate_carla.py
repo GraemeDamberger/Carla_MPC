@@ -277,7 +277,7 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
                 options=options,
             )
             M_u = res.x
-            U   = leg.decode(M_u)
+            U = leg.decode(M_u)
             U_mem.append(U[0])
 
             # steer: nominal + tube correction (if applicable) + constant bias disturbance

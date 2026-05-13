@@ -27,14 +27,14 @@ config = {
 
 # Disturbance
     "steering_force": [0.1,0.2,0.3],
-    "wind_force": [500, 1000, 2000],
+    "wind_force": [5000, 10000, 15000],
 # Plant Model
     "l": 2.5,
     "dt": 0.005,
 
 # Online Learning (replay_buffer and residual_dynamics)
     "buffer_size": 1000,
-    "online_lr": 1e-8,
+    "online_lr": 1e-7,
     "online_weight_decay": 1e-5,
 
 # Tube
