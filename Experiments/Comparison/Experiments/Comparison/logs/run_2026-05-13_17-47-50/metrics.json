@@ -1,0 +1,14 @@
+{
+  "base": {
+    "replay_buffer": 0.5487460960119861,
+    "residual_dynamics": 0.5358285916559193
+  },
+  "steer_0.3": {
+    "replay_buffer": 1.4536381973213726,
+    "residual_dynamics": 1.3964096188639061
+  },
+  "wind_15000": {
+    "replay_buffer": 1.3318399623122341,
+    "residual_dynamics": 1.198694019164749
+  }
+}

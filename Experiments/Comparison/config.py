@@ -34,7 +34,8 @@ config = {
 
 # Online Learning (replay_buffer and residual_dynamics)
     "buffer_size": 1000,
-    "online_lr": 1e-7,
+    "online_lr_replay": 4e-7,
+    "online_lr_residual": 2e-7,
     "online_weight_decay": 1e-5,
 
 # Tube

@@ -70,13 +70,13 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
         model_online = copy.deepcopy(model_norm)
         optim_online = torch.optim.Adam(
             model_online.parameters(),
-            lr=config['online_lr'], weight_decay=config['online_weight_decay'],
+            lr=config['online_lr_replay'], weight_decay=config['online_weight_decay'],
         )
     elif method == 'residual_dynamics':
         model_residual = ResidualNN(N, 2 * N)
         optim_online = torch.optim.Adam(
             model_residual.parameters(),
-            lr=config['online_lr'], weight_decay=config['online_weight_decay'],
+            lr=config['online_lr_residual'], weight_decay=config['online_weight_decay'],
         )
 
     # ------------------------------------------------------------------ helpers
@@ -320,8 +320,14 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
                 y_lmu = lmu_step(y_lmu, X_traj[1, i])
 
                 U_data = to_leg_coeffs(u_lmu)
-                X_data = to_leg_coeffs(x_lmu)
-                Y_data = to_leg_coeffs(y_lmu)
+
+                origin_step = max(0, i - Np)
+                ox, oy, otheta = X_traj[:, origin_step]
+                x_history = leg.decode(to_leg_coeffs(x_lmu))
+                y_history = leg.decode(to_leg_coeffs(y_lmu))
+                x_local, y_local = global_to_local(x_history, y_history, ox, oy, otheta)
+                X_data = leg.encode(x_local)
+                Y_data = leg.encode(y_local)
 
                 M_u_t = torch.tensor(U_data, dtype=torch.float32)
                 M_x_t = torch.tensor(np.hstack((X_data, Y_data)), dtype=torch.float32)

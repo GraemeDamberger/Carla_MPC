@@ -137,7 +137,7 @@ def simulate_carla(trial_num,log_dir):
                 state_dim,
                 control_dim,
                 num_basis=30,
-                gamma=5.0,
+                gamma=500.0,
                 sigma=1.0,
                 weight_clip=20.0,
                 seed=0
@@ -161,7 +161,7 @@ def simulate_carla(trial_num,log_dir):
             self.weight_clip = weight_clip
 
             # RBF centers in normalized state-space
-            self.centers = rng.uniform(-1.0, 1.0, size=(num_basis, state_dim))
+            self.centers = rng.uniform(-np.pi, np.pi, size=(num_basis, state_dim))
 
             # Decoder weights:
             # each basis contributes to each control input
@@ -350,6 +350,7 @@ def simulate_carla(trial_num,log_dir):
     U_mem = [0]
 
     M_u = np.zeros(N)
+    U_prev_nom = 0.0
     leg = legendre(Np * dt, N, dt)
     P = leg.P[0:Np, :]
     Q = np.matmul(np.transpose(P), np.matmul(Q, P))
@@ -393,7 +394,11 @@ def simulate_carla(trial_num,log_dir):
             U_mem.append(U[0])
             U_mpc = U[0]
 
-            U_tube = tube_control(sys, X[:, i-2], X[:, i-1], current_speed,U_mpc,K_tube,adaptive)
+            if i >= 2:
+                U_tube = tube_control(sys, X[:, i-2], X[:, i-1], current_speed, U_prev_nom, K_tube, adaptive)
+            else:
+                U_tube = 0.0
+            U_prev_nom = U_mpc
 
             U_steer = U_mpc + U_tube
 

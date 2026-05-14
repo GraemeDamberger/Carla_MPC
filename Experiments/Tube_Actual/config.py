@@ -25,9 +25,9 @@ config = {
     "alpha": 0, # For feedback mixing, alpha = 1: open loop, alpha = 0: closed loop
     "K_tube": [0.0, 0.0, -10.0],
     "translational_force": 0,
-    "steering_force": 0.25,
+    "steering_force": 0,
     # Plant
-    "l": 2.5,
+    "l": 0.2,
     "dt": 0.005, #0.001
 
 # Simulation

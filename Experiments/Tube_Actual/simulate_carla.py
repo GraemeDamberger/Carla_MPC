@@ -243,6 +243,7 @@ def simulate_carla(trial_num,log_dir):
     U_mem = [0]
 
     M_u = np.zeros(N)
+    U_prev_nom = 0.0
     leg = legendre(Np * dt, N, dt)
     P = leg.P[0:Np, :]
     Q = np.matmul(np.transpose(P), np.matmul(Q, P))
@@ -286,7 +287,11 @@ def simulate_carla(trial_num,log_dir):
             U_mem.append(U[0])
             U_mpc = U[0]
 
-            U_tube = tube_control(sys, X[:, i-2], X[:, i-1], current_speed,U_mpc,K_tube)
+            if i >= 2:
+                U_tube = tube_control(sys, X[:, i-2], X[:, i-1], current_speed, U_prev_nom, K_tube)
+            else:
+                U_tube = 0.0
+            U_prev_nom = U_mpc
 
             U_steer = U_mpc + U_tube + steering_force
 

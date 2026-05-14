@@ -287,6 +287,14 @@ def simulate_carla(trial_num,log_dir):
             Y_data = leg.encode(leg.decode(Y_data))
             U_data = leg.encode(leg.decode(U_data))
 
+            origin_step = max(0, i - Np)
+            ox, oy, otheta = X[:, origin_step]
+            x_history = leg.decode(X_data)
+            y_history = leg.decode(Y_data)
+            x_local, y_local = global_to_local(x_history, y_history, ox, oy, otheta)
+            X_data = leg.encode(x_local)
+            Y_data = leg.encode(y_local)
+
             M_x_tensor = torch.tensor(np.hstack((X_data, Y_data)), dtype=torch.float32)
             M_u_tensor = torch.tensor(U_data, dtype=torch.float32)
             if(i == window_steps+buffer_size):
