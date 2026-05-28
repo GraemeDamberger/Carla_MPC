@@ -1,0 +1,18 @@
+{
+  "method": "tube_adaptive",
+  "study_name": "tube_adaptive_2026-05-19_10-19-58",
+  "best_trial": 10,
+  "mean_rmse": 0.6342993084613293,
+  "params": {
+    "K_tube_adaptive_heading": -39.61905791892411,
+    "rbf_gamma": 26.30158762851422,
+    "rbf_sigma": 0.2546582531385332
+  },
+  "tune_steps": 10000,
+  "n_seeds": 2,
+  "tuning_scenario": {
+    "name": "steer_0.2",
+    "steering_force": 0.2,
+    "wind_force": 0.0
+  }
+}

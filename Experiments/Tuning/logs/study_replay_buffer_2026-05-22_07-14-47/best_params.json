@@ -1,0 +1,18 @@
+{
+  "method": "replay_buffer",
+  "study_name": "replay_buffer_2026-05-22_07-14-47",
+  "best_trial": 29,
+  "mean_rmse": 0.7862632211477133,
+  "params": {
+    "online_lr_replay": 3.860739999257682e-07,
+    "buffer_size": 919,
+    "online_weight_decay": 1.9193907231658974e-07
+  },
+  "tune_steps": 10000,
+  "n_seeds": 2,
+  "tuning_scenario": {
+    "name": "base",
+    "steering_force": 0.0,
+    "wind_force": 0.0
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "method": "tube",
+  "study_name": "tube_2026-05-18_20-19-46",
+  "best_trial": 28,
+  "mean_rmse": 0.6471907788543362,
+  "params": {
+    "K_tube_heading": -44.96820062851194
+  },
+  "tune_steps": 10000,
+  "n_seeds": 2,
+  "tuning_scenario": {
+    "name": "steer_0.2",
+    "steering_force": 0.2,
+    "wind_force": 0.0
+  }
+}

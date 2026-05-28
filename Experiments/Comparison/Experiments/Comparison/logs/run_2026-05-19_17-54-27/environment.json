@@ -1,0 +1,6 @@
+{
+  "git_commit": "f48f24242bd0c2706711cb47d67ca27a4e0c03bc",
+  "python_version": "3.12.11",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "torch_version": "2.10.0.dev20250923+cu130"
+}

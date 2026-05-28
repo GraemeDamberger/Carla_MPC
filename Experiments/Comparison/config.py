@@ -33,13 +33,20 @@ config = {
     "dt": 0.005,
 
 # Online Learning (replay_buffer and residual_dynamics)
-    "buffer_size": 1000,
-    "online_lr_replay": 4e-7,
-    "online_lr_residual": 2e-7,
-    "online_weight_decay": 1e-5,
+    "buffer_size": 139,#1000,
+    "online_lr_replay": 4.5463954951931305e-07,#4e-7,
+    "online_lr_residual": 4.5463954951931305e-07,#2e-7,
+    "online_weight_decay": 0.0004272274816226789,#1e-5,
 
 # Tube
-    "K_tube": [0.0, 0.0, -15.0],
+    "K_tube": [0,0,-44.96820062851194],#[0.0, 0.0, -15.0],
+
+# Tube Adaptive
+    "K_tube_adaptive": [0,0, -39.61905791892411],#[0.0, 0.0, -15.0],
+    "rbf_num_basis": 50,
+    "rbf_gamma": 26.30158762851422,#80.0,
+    "rbf_sigma": 0.254658253138533,#0.7,
+    "rbf_weight_clip": 20.0,
 
 # Simulation
     "sim_T": 10000,
@@ -49,6 +56,7 @@ config = {
     "ref_points":1500,
     "seed":26,
     "record": False,
+    "no_rendering_mode": False,
 }
 
 class SimpleNN(nn.Module):

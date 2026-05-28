@@ -1,0 +1,18 @@
+{
+  "method": "residual_dynamics",
+  "study_name": "residual_dynamics_2026-05-18_12-16-41",
+  "best_trial": 11,
+  "mean_rmse": 0.575735573813163,
+  "params": {
+    "online_lr_residual": 4.5463954951931305e-07,
+    "buffer_size": 139,
+    "online_weight_decay": 0.0004272274816226789
+  },
+  "tune_steps": 10000,
+  "n_seeds": 2,
+  "tuning_scenario": {
+    "name": "steer_0.2",
+    "steering_force": 0.2,
+    "wind_force": 0.0
+  }
+}

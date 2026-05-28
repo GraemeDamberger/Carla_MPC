@@ -16,6 +16,33 @@ from Shared.funcs import bike, legendre, get_mpc_reference, global_to_local
 from Shared.logging_utils import save_model, save_plot
 
 
+class AdaptiveRBFController:
+    def __init__(self, state_dim, control_dim, num_basis=50, gamma=80.0,
+                 sigma=0.7, weight_clip=20.0, seed=0):
+        rng = np.random.default_rng(seed)
+        self.nu = control_dim
+        self.nb = num_basis
+        self.gamma = gamma
+        self.sigma = sigma
+        self.weight_clip = weight_clip
+        self.centers = rng.uniform(-np.pi, np.pi, size=(num_basis, state_dim))
+        self.W = np.zeros((num_basis, control_dim))
+
+    def phi(self, x):
+        diff = self.centers - x
+        sq_norm = np.sum(diff ** 2, axis=1)
+        phi = np.exp(-sq_norm / (2 * self.sigma ** 2))
+        phi /= np.sum(phi) + 1e-8
+        return phi
+
+    def forward_control(self, x):
+        return float(self.W.T @ self.phi(x))
+
+    def update(self, x, e, dt):
+        dW = self.gamma * np.outer(self.phi(x), e)
+        self.W = np.clip(self.W + dt * dW, -self.weight_clip, self.weight_clip)
+
+
 def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, wind_force=0.0, model_path=None):
     """
     Run one CARLA simulation episode.
@@ -35,8 +62,9 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
     Steps        = config['steps']
     buffer_size  = config['buffer_size']
     batch_size   = config['batch_size']
-    K_tube       = np.array(config['K_tube'])
-    seed         = config['seed']
+    K_tube          = np.array(config['K_tube'])
+    K_tube_adaptive = np.array(config['K_tube_adaptive'])
+    seed            = config['seed']
 
     # MPC bicycle model
     sys = bike(config['l'], dt)
@@ -79,6 +107,17 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
             lr=config['online_lr_residual'], weight_decay=config['online_weight_decay'],
         )
 
+    adaptive = None
+    if method == 'tube_adaptive':
+        adaptive = AdaptiveRBFController(
+            state_dim=1,
+            control_dim=1,
+            num_basis=config['rbf_num_basis'],
+            gamma=config['rbf_gamma'],
+            sigma=config['rbf_sigma'],
+            weight_clip=config['rbf_weight_clip'],
+        )
+
     # ------------------------------------------------------------------ helpers
     def get_Mx_direct(M_u):
         U = leg.decode(M_u)
@@ -117,6 +156,14 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
     def tube_control(X_prev, X_curr, V, U_nom):
         X_hat = sys.dynamics(X_prev, V, U_nom)
         return float(K_tube @ (X_curr - X_hat))
+
+    def tube_adaptive_control(X_prev, X_curr, V, U_nom):
+        X_hat   = sys.dynamics(X_prev, V, U_nom)
+        e       = X_curr - X_hat
+        u_tube  = float(K_tube_adaptive @ e)
+        u_adapt = adaptive.forward_control(X_curr[2])
+        adaptive.update(X_curr[2], -e[2], dt)
+        return u_tube + u_adapt
 
     def constraint_decode_specific_points(M_u):
         return leg.P[sample_points] @ M_u
@@ -179,6 +226,7 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
     settings.synchronous_mode    = True
     settings.fixed_delta_seconds = dt
     settings.random_seed         = seed
+    settings.no_rendering_mode   = config['no_rendering_mode']
     world.apply_settings(settings)
     world.tick()
 
@@ -285,6 +333,9 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
             # then correct for the observed heading error (plant vs model)
             if method == 'tube' and i >= 2:
                 U_tube  = tube_control(X_traj[:, i-2], X_traj[:, i-1], cur_speed, U_prev_nom)
+                U_steer = U[0] + U_tube + steering_force
+            elif method == 'tube_adaptive' and i >= 2:
+                U_tube  = tube_adaptive_control(X_traj[:, i-2], X_traj[:, i-1], cur_speed, U_prev_nom)
                 U_steer = U[0] + U_tube + steering_force
             else:
                 U_steer = U[0] + steering_force

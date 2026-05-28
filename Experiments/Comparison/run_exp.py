@@ -23,8 +23,8 @@ model_path = args.model or config['model_path']
 
 
 #METHODS = ['normal','replay_buffer', 'residual_dynamics']
-METHODS = ['normal', 'tube', 'replay_buffer', 'residual_dynamics']
-COLORS  = ['steelblue', 'darkorange', 'green', 'crimson']
+METHODS = ['normal', 'tube', 'replay_buffer', 'residual_dynamics','tube_adaptive']
+COLORS  = ['steelblue', 'darkorange', 'green', 'crimson', 'mediumpurple']
 #COLORS  = ['steelblue', 'darkorange','green']
 
 # 7 trials: 1 base + 3 steering disturbances + 3 wind-force disturbances
