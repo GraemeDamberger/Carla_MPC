@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from scipy import linalg
 from scipy.optimize import LinearConstraint

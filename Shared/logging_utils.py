@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 import platform
 import torch
-import matplotlib.pyplot as plt
 
 
 def create_log_dir(base="logs"):

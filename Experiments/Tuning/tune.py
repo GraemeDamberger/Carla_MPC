@@ -107,7 +107,7 @@ def patched_config(**overrides):
 
 def params_to_overrides(method: str, params: dict, steps: int) -> dict:
     """Translate Optuna params dict into config key/value overrides."""
-    overrides: dict = {"steps": steps, "no_rendering_mode": True}
+    overrides: dict = {"steps": steps, "no_rendering_mode": True, "save_plots": False}
     if method == "replay_buffer":
         overrides["online_lr_replay"]    = params["online_lr_replay"]
         overrides["buffer_size"]         = params["buffer_size"]

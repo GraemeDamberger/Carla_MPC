@@ -57,6 +57,7 @@ config = {
     "seed":26,
     "record": False,
     "no_rendering_mode": False,
+    "save_plots": True,   # per-rollout diagnostic plots; tuning sets this False
 }
 
 class SimpleNN(nn.Module):

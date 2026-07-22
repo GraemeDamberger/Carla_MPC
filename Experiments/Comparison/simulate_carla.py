@@ -9,7 +9,12 @@ try:
 except ImportError:
     cv2 = None  # headless HPC runs don't record; keeps import working without opencv
 import carla
-import matplotlib.pyplot as plt
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # only needed for per-rollout diagnostic plots
+except ImportError:
+    plt = None  # headless HPC sweeps skip plotting (config['save_plots'] = False)
 import numpy as np
 import torch
 import torch.nn as nn
@@ -427,40 +432,43 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
         vehicle.destroy()
 
     # ------------------------------------------------------------------ plots
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(V_log, label='V')
-    ax.axhline(desired_speed, color='r', linestyle='--', label='V_des')
-    ax.set_xlabel('Step')
-    ax.set_ylabel('Speed [m/s]')
-    ax.set_title(f'Speed — {tag}')
-    ax.legend()
-    ax.grid(True)
-    plt.tight_layout()
-    save_plot(log_dir, fig, f'velocity_{tag}')
-    plt.close(fig)
+    # Skipped during hyperparameter sweeps (config['save_plots'] = False) and
+    # when matplotlib is unavailable — the sweep only needs the returned RMSE.
+    if config.get('save_plots', True) and plt is not None:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(V_log, label='V')
+        ax.axhline(desired_speed, color='r', linestyle='--', label='V_des')
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Speed [m/s]')
+        ax.set_title(f'Speed — {tag}')
+        ax.legend()
+        ax.grid(True)
+        plt.tight_layout()
+        save_plot(log_dir, fig, f'velocity_{tag}')
+        plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(X_traj[0], X_traj[1], label='Tracked', linewidth=2)
-    ax.plot(X_des[0, ::5], X_des[1, ::5], 'o', markersize=4, label='Reference')
-    ax.set_xlabel('X [m]')
-    ax.set_ylabel('Y [m]')
-    ax.set_title(f'Trajectory — {tag}')
-    ax.legend()
-    ax.grid(True)
-    ax.axis('equal')
-    plt.tight_layout()
-    save_plot(log_dir, fig, f'trajectory_{tag}')
-    plt.close(fig)
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(X_traj[0], X_traj[1], label='Tracked', linewidth=2)
+        ax.plot(X_des[0, ::5], X_des[1, ::5], 'o', markersize=4, label='Reference')
+        ax.set_xlabel('X [m]')
+        ax.set_ylabel('Y [m]')
+        ax.set_title(f'Trajectory — {tag}')
+        ax.legend()
+        ax.grid(True)
+        ax.axis('equal')
+        plt.tight_layout()
+        save_plot(log_dir, fig, f'trajectory_{tag}')
+        plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(U_mem)
-    ax.set_xlabel('Step')
-    ax.set_ylabel('Steer [rad]')
-    ax.set_title(f'Control — {tag}')
-    ax.grid(True)
-    plt.tight_layout()
-    save_plot(log_dir, fig, f'control_{tag}')
-    plt.close(fig)
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(U_mem)
+        ax.set_xlabel('Step')
+        ax.set_ylabel('Steer [rad]')
+        ax.set_title(f'Control — {tag}')
+        ax.grid(True)
+        plt.tight_layout()
+        save_plot(log_dir, fig, f'control_{tag}')
+        plt.close(fig)
 
     if method == 'replay_buffer':
         save_model(log_dir, model_online, f'model_online_{tag}')
