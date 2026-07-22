@@ -1,4 +1,5 @@
 import copy
+import os
 import random
 import time
 from pathlib import Path
@@ -218,7 +219,8 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
     # ------------------------------------------------------------------ CARLA
     error_array = np.zeros((Steps, 2))
 
-    client = carla.Client("localhost", 2000)
+    port   = int(os.environ.get("CARLA_PORT", 2000))
+    client = carla.Client("localhost", port)
     client.set_timeout(10.0)
     world = client.get_world()
 

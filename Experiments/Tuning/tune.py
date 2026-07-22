@@ -32,6 +32,8 @@ from pathlib import Path
 import numpy as np
 import optuna
 from optuna.samplers import TPESampler
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
 import torch
 
 from Experiments.Comparison.config import config
@@ -281,7 +283,6 @@ def main() -> None:
     parser.add_argument("--params_file", type=str, default=None,
                         help="Path to best_params.json (required with --validate)")
     args = parser.parse_args()
-    args.model = "Experiments/Comparison/Experiments/Comparison/logs/run_2026-05-12_12-40-58/models/model_trial_0"
 
     # ---- Validation mode ----
     if args.validate:
@@ -315,8 +316,8 @@ def main() -> None:
 
         if args.resume:
             log_dir = Path(args.resume)
-            if not (log_dir / "study.db").exists():
-                raise FileNotFoundError(f"No study.db found in {log_dir}")
+            if not (log_dir / "study.log").exists():
+                raise FileNotFoundError(f"No study.log found in {log_dir}")
             study_name = log_dir.name.removeprefix("study_")
         else:
             log_dir = Path("Experiments/Tuning/logs") / f"study_{study_name}"
@@ -328,7 +329,9 @@ def main() -> None:
         (temp_dir / "plots").mkdir(parents=True, exist_ok=True)
         (temp_dir / "models").mkdir(parents=True, exist_ok=True)
 
-        storage = f"sqlite:///{log_dir / 'study.db'}"
+        # JournalStorage (file-backed) instead of SQLite: safe for many
+        # concurrent Slurm array workers writing to one study on Lustre.
+        storage = JournalStorage(JournalFileBackend(str(log_dir / "study.log")))
 
         study = optuna.create_study(
             study_name=study_name,
