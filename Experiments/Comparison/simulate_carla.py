@@ -4,7 +4,10 @@ import random
 import time
 from pathlib import Path
 
-import cv2
+try:
+    import cv2  # only needed when config['record'] is True (video output)
+except ImportError:
+    cv2 = None  # headless HPC runs don't record; keeps import working without opencv
 import carla
 import matplotlib.pyplot as plt
 import numpy as np
