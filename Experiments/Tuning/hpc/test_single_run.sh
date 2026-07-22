@@ -47,10 +47,13 @@ fi
 echo "Port $PORT is open."
 
 echo "=== Running one simulate_carla rollout ==="
-# Don't let set -e abort before we can report the Python exit code / traceback.
-# python -u keeps stdout/stderr unbuffered so a crash isn't lost on teardown.
+# Capture Python's stdout+stderr to a dedicated file and cat it back, so a
+# traceback can't be lost to Slurm's stderr handling. faulthandler dumps a
+# native stack too, in case the carla client crashes below the Python level.
+ROLLOUT_LOG="$SCRATCH/carla/rollout_${SLURM_JOB_ID}.log"
 set +e
 CARLA_PORT="$PORT" python -u -c "
+import faulthandler; faulthandler.enable()
 from pathlib import Path
 from Experiments.Comparison.simulate_carla import simulate_carla
 
@@ -63,10 +66,12 @@ rmse = simulate_carla(
     model_path='$SCRATCH/carla/model_trial_0',
 )
 print(f'RMSE: {rmse:.4f} m')
-"
+" > "$ROLLOUT_LOG" 2>&1
 RC=$?
 set -e
-echo "=== Python rollout exit code: $RC ==="
+echo "=== Python rollout output (exit code $RC) ==="
+cat "$ROLLOUT_LOG"
+echo "=== end rollout output ==="
 
 if [ "$RC" -eq 0 ]; then
     echo "=== Smoke test finished successfully ==="
