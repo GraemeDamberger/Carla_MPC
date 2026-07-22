@@ -6,7 +6,6 @@ from scipy.optimize import NonlinearConstraint
 from math import comb
 import random
 import time
-from sklearn.metrics import mean_squared_error
 import copy
 import scipy.linalg as lin
 
@@ -24,7 +23,6 @@ import time as timer
 from torch.utils.data import TensorDataset, random_split, DataLoader
 
 from scipy.interpolate import interp1d
-import yaml
 #Legendre domain
 class legendre:
     def __init__(self,theta, dim, dt): 

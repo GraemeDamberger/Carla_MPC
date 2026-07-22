@@ -1,6 +1,5 @@
 import os
 import json
-import yaml
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +16,7 @@ def create_log_dir(base="logs"):
 
 
 def save_config(log_dir, config_dict, name = "config.yaml"):
+    import yaml  # lazy: not needed on the tuning path, keeps import light on HPC
     config_path = Path(log_dir) / name
     with open(config_path, 'w') as f:
         yaml.dump(config_dict, f)
