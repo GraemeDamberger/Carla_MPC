@@ -240,14 +240,18 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
     vehicle     = world.spawn_actor(vehicle_bp[3], spawn_point)
     time.sleep(1)
 
-    camera_bp = world.get_blueprint_library().find('sensor.camera.rgb')
-    camera    = world.spawn_actor(
-        camera_bp,
-        carla.Transform(carla.Location(x=-5.5, z=2.5)),
-        attach_to=vehicle,
-    )
-
+    # The RGB camera is only needed for video recording. Under -nullrhi
+    # (headless HPC) there is no render device, so spawning a camera sensor
+    # crashes the server the moment the client connects. Only create it when
+    # actually recording.
+    camera = None
     if config['record']:
+        camera_bp = world.get_blueprint_library().find('sensor.camera.rgb')
+        camera    = world.spawn_actor(
+            camera_bp,
+            carla.Transform(carla.Location(x=-5.5, z=2.5)),
+            attach_to=vehicle,
+        )
         video_dir = Path(log_dir) / "videos"
         video_dir.mkdir(parents=True, exist_ok=True)
         out = cv2.VideoWriter(
@@ -415,8 +419,9 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
                         optim_online.step()
 
     finally:
-        camera.stop()
-        camera.destroy()
+        if camera is not None:
+            camera.stop()
+            camera.destroy()
         if config['record']:
             out.release()
         vehicle.destroy()

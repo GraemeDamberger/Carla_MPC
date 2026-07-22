@@ -47,7 +47,10 @@ fi
 echo "Port $PORT is open."
 
 echo "=== Running one simulate_carla rollout ==="
-CARLA_PORT="$PORT" python -c "
+# Don't let set -e abort before we can report the Python exit code / traceback.
+# python -u keeps stdout/stderr unbuffered so a crash isn't lost on teardown.
+set +e
+CARLA_PORT="$PORT" python -u -c "
 from pathlib import Path
 from Experiments.Comparison.simulate_carla import simulate_carla
 
@@ -61,5 +64,11 @@ rmse = simulate_carla(
 )
 print(f'RMSE: {rmse:.4f} m')
 "
+RC=$?
+set -e
+echo "=== Python rollout exit code: $RC ==="
 
-echo "=== Smoke test finished successfully ==="
+if [ "$RC" -eq 0 ]; then
+    echo "=== Smoke test finished successfully ==="
+fi
+exit "$RC"
