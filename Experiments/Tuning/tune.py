@@ -50,6 +50,10 @@ TUNE_STEPS = 10_000
 FULL_STEPS = 10_000
 BASE_SEED  = 26
 
+# Study-name suffix used by the HPC array script (tune_array.sh names each study
+# "<method>_<STUDY_SUFFIX>"). --report reconstructs study names with the same rule.
+STUDY_SUFFIX = "sweep_v1"
+
 # All scenarios used during final validation (mirrors Comparison/run_exp.py)
 ALL_SCENARIOS = (
     [{"name": "base",         "steering_force": 0.0,  "wind_force": 0.0}]
@@ -227,6 +231,63 @@ def run_validation(method: str, params: dict, log_dir: Path,
     return results
 
 # ---------------------------------------------------------------------------
+# Reporting (recover results straight from the shared journal)
+# ---------------------------------------------------------------------------
+
+def run_report(methods: list[str], suffix: str = STUDY_SUFFIX,
+               study_name: str | None = None) -> None:
+    """Load each method's journal study and print + rewrite its best_params.json.
+
+    Safe to run against a study whose workers were killed at walltime: the
+    journal holds every completed trial even when best_params.json was never
+    written. Reads only — never launches CARLA.
+    """
+    log_root = Path("Experiments/Tuning/logs")
+    for method in methods:
+        name    = study_name or f"{method}_{suffix}"
+        log_dir = log_root / f"study_{name}"
+        journal = log_dir / "study.log"
+
+        print(f"\n{'='*55}")
+        print(f"{method}  (study: {name})")
+        if not journal.exists():
+            print(f"  no study.log found at {journal} — skipped")
+            continue
+
+        storage = JournalStorage(JournalFileBackend(str(journal)))
+        try:
+            study = optuna.load_study(study_name=name, storage=storage)
+        except Exception as e:
+            print(f"  could not load study: {e}")
+            continue
+
+        n_done = len([t for t in study.trials
+                      if t.state == optuna.trial.TrialState.COMPLETE])
+        print(f"  trials completed: {n_done}  (total records: {len(study.trials)})")
+
+        try:
+            best = study.best_trial
+        except ValueError:
+            print("  no completed trial yet — nothing to report")
+            continue
+
+        print(f"  best trial #{best.number}: mean RMSE = {best.value:.4f} m")
+        for k, v in best.params.items():
+            print(f"    {k}: {v:.6g}" if isinstance(v, float) else f"    {k}: {v}")
+
+        best_info = {
+            "method":     method,
+            "study_name": name,
+            "best_trial": best.number,
+            "mean_rmse":  best.value,
+            "params":     best.params,
+            "n_trials":   n_done,
+        }
+        with open(log_dir / "best_params.json", "w") as f:
+            json.dump(best_info, f, indent=2)
+        print(f"  → wrote {log_dir}/best_params.json")
+
+# ---------------------------------------------------------------------------
 # Optuna visualisation
 # ---------------------------------------------------------------------------
 
@@ -282,7 +343,23 @@ def main() -> None:
                         help="Validation mode: run best params at full steps on all scenarios")
     parser.add_argument("--params_file", type=str, default=None,
                         help="Path to best_params.json (required with --validate)")
+    # Report mode
+    parser.add_argument("--report", action="store_true",
+                        help="Report mode: read each method's journal study and "
+                             "print + rewrite best_params.json (no CARLA runs)")
+    parser.add_argument("--study_suffix", type=str, default=STUDY_SUFFIX,
+                        help=f"Study-name suffix for --report (default '{STUDY_SUFFIX}', "
+                             "matches tune_array.sh)")
     args = parser.parse_args()
+
+    # ---- Report mode ----
+    if args.report:
+        run_report(
+            args.method,
+            suffix=args.study_suffix,
+            study_name=args.study_name if len(args.method) == 1 else None,
+        )
+        return
 
     # ---- Validation mode ----
     if args.validate:
