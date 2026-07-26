@@ -145,7 +145,8 @@ def suggest_params(trial: optuna.Trial, method: str) -> dict:
     return params
 
 
-def make_objective(method, temp_dir, n_seeds, steps, scenarios, model_path):
+def make_objective(method, temp_dir, n_seeds, steps, scenarios, model_path,
+                   rmse_cap=None):
     """Return an Optuna objective closure over the given settings."""
 
     def objective(trial: optuna.Trial) -> float:
@@ -176,10 +177,14 @@ def make_objective(method, temp_dir, n_seeds, steps, scenarios, model_path):
                             wind_force=scen.get("wind_force", 0.0),
                             model_path=model_path,
                         )
+                    raw_rmse = rmse
+                    if rmse_cap is not None:
+                        rmse = min(rmse, rmse_cap)
                     rmse_values.append(rmse)
+                    capped = "" if raw_rmse == rmse else f"  (capped from {raw_rmse:.4f})"
                     print(
                         f"  seed={seed_idx}  scen={scen.get('name', scen)}"
-                        f"  rmse={rmse:.4f} m"
+                        f"  rmse={rmse:.4f} m{capped}"
                     )
 
         mean_rmse = float(np.mean(rmse_values))
@@ -330,6 +335,10 @@ def main() -> None:
                         help="Optuna trials to run (default 50)")
     parser.add_argument("--n_seeds", type=int, default=2,
                         help="CARLA runs per scenario per trial for noise averaging (default 3)")
+    parser.add_argument("--rmse_cap", type=float, default=None,
+                        help="Upper-bound each run's RMSE at this value before averaging. "
+                             "Stops divergent scenarios (e.g. high wind) from dominating the "
+                             "objective. Changes objective semantics — use a fresh study.")
     parser.add_argument("--steps", type=int, default=TUNE_STEPS,
                         help=f"Sim steps per run (default {TUNE_STEPS})")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL_PATH,
@@ -418,9 +427,18 @@ def main() -> None:
             sampler=TPESampler(seed=None),
         )
 
+        # Record the objective's cap so the study is self-documenting. Warn if a
+        # resumed study was built with a different cap (values would be mixed).
+        prior_cap = study.user_attrs.get("rmse_cap", "unset")
+        if prior_cap not in ("unset", args.rmse_cap):
+            print(f"WARNING: study was created with rmse_cap={prior_cap} but this "
+                  f"run uses {args.rmse_cap}; objective values will be inconsistent.")
+        study.set_user_attr("rmse_cap", args.rmse_cap)
+
         already_done = len(study.trials)
         print(f"Study:      {study_name}")
         print(f"Log dir:    {log_dir}")
+        print(f"RMSE cap:   {args.rmse_cap}")
         n_runs = args.n_seeds * len(tune_scenarios)
         print(f"Steps/run:  {args.steps}  ×  {args.n_seeds} seeds  ×  {len(tune_scenarios)} scenarios"
               f"  = {args.steps * n_runs} sim-steps / Optuna trial")
@@ -434,6 +452,7 @@ def main() -> None:
         objective = make_objective(
             method, temp_dir, args.n_seeds,
             args.steps, tune_scenarios, args.model,
+            rmse_cap=args.rmse_cap,
         )
         study.optimize(objective, n_trials=args.n_trials)
 

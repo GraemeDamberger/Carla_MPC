@@ -22,28 +22,25 @@ cd ~/Carla_MPC
 
 source Experiments/Tuning/hpc/carla_server.sh
 
-PORT=2000
 SERVER_LOG="$SCRATCH/carla/server_${SLURM_JOB_ID}.log"
 
-echo "=== Starting CARLA server on port $PORT ==="
-CARLA_PID=$(start_carla_server "$PORT" "$SERVER_LOG")
-echo "Server PID: $CARLA_PID"
+echo "=== Launching CARLA server (random free port) ==="
+if ! launch_carla "$SERVER_LOG"; then
+    echo "=== Server log (last 100 lines) ==="
+    tail -n 100 "$SERVER_LOG" || true
+    exit 1
+fi
+PORT="$CARLA_PORT"
+echo "Server PID: $CARLA_PID  Port: $PORT"
 
 cleanup() {
     echo "=== Server log (last 50 lines) ==="
     tail -n 50 "$SERVER_LOG" || true
     echo "=== Tearing down CARLA server ==="
-    kill "$CARLA_PID" 2>/dev/null || true
-    wait "$CARLA_PID" 2>/dev/null || true
+    kill "${CARLA_PID:-}" 2>/dev/null || true
+    wait "${CARLA_PID:-}" 2>/dev/null || true
 }
 trap cleanup EXIT
-
-echo "=== Waiting for port $PORT ==="
-if ! wait_for_port "$PORT" 120; then
-    echo "=== Server log (last 100 lines) ==="
-    tail -n 100 "$SERVER_LOG" || true
-    exit 1
-fi
 echo "Port $PORT is open."
 
 echo "=== Running one simulate_carla rollout ==="
