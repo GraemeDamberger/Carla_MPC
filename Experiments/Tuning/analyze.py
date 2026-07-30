@@ -74,9 +74,15 @@ def load_study(method: str, suffix: str):
         return name, None
 
 
-def parse_logs(log_glob: str) -> dict:
-    """Parse worker logs into {method: {trial: {scenario: [rmse, ...]}}}."""
+def parse_logs(log_glob: str, suffix: str) -> dict:
+    """Parse worker logs into {method: {trial: {scenario: [rmse, ...]}}}.
+
+    Only logs whose "Study:" line ends with the given suffix are attributed to a
+    method; logs from other study versions (e.g. v1 when analysing v2) are left
+    with the full study name as key and simply never matched.
+    """
     data: dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    tail = f"_{suffix}"
     for path in glob.glob(log_glob):
         method, cur_trial = None, None
         try:
@@ -86,8 +92,7 @@ def parse_logs(log_glob: str) -> dict:
                     sm = STUDY_RE.match(line)
                     if sm:
                         study  = sm.group(1)
-                        method = (study[:-len(f"_{STUDY_SUFFIX}")]
-                                  if study.endswith(f"_{STUDY_SUFFIX}") else study)
+                        method = study[:-len(tail)] if study.endswith(tail) else study
                         continue
                     tm = START_RE.match(line)
                     if tm:
@@ -298,7 +303,7 @@ def main() -> None:
 
     parsed = {}
     if args.logs:
-        parsed = parse_logs(str(Path(args.logs) / "carla_hpo_tune-*.out"))
+        parsed = parse_logs(str(Path(args.logs) / "carla_hpo_tune-*.out"), args.suffix)
 
     print("\nExporting CSVs:")
     rows = build_summary(args.methods, studies, parsed)
