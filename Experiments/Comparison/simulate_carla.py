@@ -45,7 +45,9 @@ class AdaptiveRBFController:
         return phi
 
     def forward_control(self, x):
-        return float(self.W.T @ self.phi(x))
+        # W is (num_basis, 1); take a scalar dot product. numpy 2.x rejects
+        # float() on a 1-d size-1 array (W.T @ phi), so index the weight column.
+        return float(self.W[:, 0] @ self.phi(x))
 
     def update(self, x, e, dt):
         dW = self.gamma * np.outer(self.phi(x), e)
