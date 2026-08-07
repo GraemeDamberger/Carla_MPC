@@ -45,9 +45,11 @@ def save_git_info(log_dir):
 
 def save_plot(log_dir, fig, name="plot.png"):
     fig_path = Path(log_dir) / "plots" / name
+    fig_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(fig_path)
 
 
 def save_model(log_dir, model, name="model.pth"):
     model_path = Path(log_dir) / "models" / name
+    model_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), model_path)
