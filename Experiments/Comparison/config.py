@@ -25,9 +25,10 @@ config = {
     "kdV": 2,
     "eps": 0.001,
 
-# Evaluation routes (Town04 spawn-point indices; refine with route_survey.py)
+# Evaluation routes (Town04 spawn indices, chosen via route_survey.py for varied
+# behavior): 20 highway/straight, 40 gentle curves, 0 one sharp corner, 180 twisty.
     "map": "Town04",
-    "route_spawn_indices": [0, 1, 2, 3],
+    "route_spawn_indices": [20, 40, 0, 180],
 
 # Disturbances
     "steer_bias": 0.2,            # steering-offset magnitude for the steer condition
