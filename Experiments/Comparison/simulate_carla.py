@@ -52,13 +52,50 @@ class AdaptiveRBFController:
         self.W = np.clip(self.W + dt * dW, -self.weight_clip, self.weight_clip)
 
 
-def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, wind_force=0.0, model_path=None):
+def compute_speed_profile(path_xy, a_lat_max, a_acc_max, a_dec_max, v_min, v_max):
+    """Curvature-aware target-speed profile along a reference path.
+
+    path_xy : (2, M) global reference points.
+    Returns (s, v): cumulative arc length and target speed at each point.
+
+    Method (standard trajectory speed planning):
+      1. curvature  kappa = |d(heading)| / d(arc length)
+      2. curvature-limited speed  v = sqrt(a_lat_max / kappa), clamped [v_min, v_max]
+      3. backward pass (decel limit) then forward pass (accel limit) so the
+         profile is longitudinally feasible (brakes *before* a curve).
+    """
+    P   = np.asarray(path_xy, dtype=float).T          # (M, 2)
+    d   = np.diff(P, axis=0)                           # (M-1, 2)
+    seg = np.maximum(np.linalg.norm(d, axis=1), 1e-6)  # (M-1,)
+    s   = np.concatenate([[0.0], np.cumsum(seg)])      # (M,)
+
+    psi  = np.arctan2(d[:, 1], d[:, 0])                # (M-1,) segment headings
+    dpsi = np.diff(psi)                                # (M-2,)
+    dpsi = (dpsi + np.pi) % (2 * np.pi) - np.pi        # wrap to (-pi, pi]
+    ds_mid = 0.5 * (seg[:-1] + seg[1:])                # (M-2,)
+
+    kappa = np.zeros(len(P))
+    kappa[1:-1] = np.abs(dpsi) / np.maximum(ds_mid, 1e-6)
+
+    v = np.clip(np.sqrt(a_lat_max / np.maximum(kappa, 1e-3)), v_min, v_max)
+
+    for k in range(len(v) - 2, -1, -1):               # backward: limit decel
+        v[k] = min(v[k], np.sqrt(v[k + 1] ** 2 + 2 * a_dec_max * seg[k]))
+    for k in range(1, len(v)):                         # forward: limit accel
+        v[k] = min(v[k], np.sqrt(v[k - 1] ** 2 + 2 * a_acc_max * seg[k - 1]))
+    return s, v
+
+
+def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
+                   flat_tire=False, icy=False, spawn_index=None, model_path=None):
     """
     Run one CARLA simulation episode.
 
-    method        : 'normal' | 'tube' | 'replay_buffer' | 'residual_dynamics'
+    method        : 'normal' | 'tube' | 'replay_buffer' | 'residual_dynamics' | 'tube_adaptive'
     steering_force: constant offset added to every steering command (actuator bias)
-    wind_force    : lateral force [N] applied to the vehicle each step (unmodeled disturbance)
+    flat_tire     : reduce grip on one wheel (config['flat_tire_wheel'/'flat_tire_friction'])
+    icy           : reduce grip on all wheels (config['icy_friction'])
+    spawn_index   : spawn-point index selecting the route (default config route 0)
     """
     if model_path is None:
         model_path = config['model_path']
@@ -74,6 +111,10 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
     K_tube          = np.array(config['K_tube'])
     K_tube_adaptive = np.array(config['K_tube_adaptive'])
     seed            = config['seed']
+    R_weight        = config['R']   # control-effort weight in the MPC cost
+
+    if spawn_index is None:
+        spawn_index = config['route_spawn_indices'][0]
 
     # MPC bicycle model
     sys = bike(config['l'], dt)
@@ -160,7 +201,8 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
         ty = (V / scale_V) * ty
         ex = tx - leg.encode(X_des)
         ey = ty - leg.encode(Y_des)
-        return float(ex @ Q_ @ ex + ey @ Q_ @ ey)
+        # tracking cost + control-effort penalty (R balances aggressive steering)
+        return float(ex @ Q_ @ ex + ey @ Q_ @ ey) + R_weight * float(M_u @ M_u)
 
     def tube_control(X_prev, X_curr, V, U_nom):
         X_hat = sys.dynamics(X_prev, V, U_nom)
@@ -229,8 +271,13 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
 
     port   = int(os.environ.get("CARLA_PORT", 2000))
     client = carla.Client("localhost", port)
-    client.set_timeout(10.0)
+    client.set_timeout(30.0)   # map loads can be slow
     world = client.get_world()
+
+    # Load the evaluation map once per server; reuse it on later rollouts.
+    target_map = config['map']
+    if target_map not in world.get_map().name:
+        world = client.load_world(target_map)
 
     settings = world.get_settings()
     settings.synchronous_mode    = True
@@ -240,10 +287,24 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
     world.apply_settings(settings)
     world.tick()
 
-    vehicle_bp  = world.get_blueprint_library().filter('*vehicle*')
-    spawn_point = world.get_map().get_spawn_points()[0]
-    vehicle     = world.spawn_actor(vehicle_bp[3], spawn_point)
+    vehicle_bp   = world.get_blueprint_library().filter('*vehicle*')
+    spawn_points = world.get_map().get_spawn_points()
+    spawn_point  = spawn_points[spawn_index % len(spawn_points)]
+    vehicle      = world.spawn_actor(vehicle_bp[3], spawn_point)
     time.sleep(1)
+
+    # Plant-fault disturbances via per-wheel tire friction.
+    if flat_tire or icy:
+        pc     = vehicle.get_physics_control()
+        wheels = pc.wheels
+        if icy:
+            for w in wheels:
+                w.tire_friction = config['icy_friction']
+        else:  # flat / low-grip: a single wheel
+            wheels[config['flat_tire_wheel']].tire_friction = config['flat_tire_friction']
+        pc.wheels = wheels
+        vehicle.apply_physics_control(pc)
+        world.tick()
 
     # The RGB camera is only needed for video recording. Under -nullrhi
     # (headless HPC) there is no render device, so spawning a camera sensor
@@ -275,6 +336,12 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
 
     X_des = np.array([[wp.x, wp.y] for wp in waypoints]).T  # (2, ref_points)
 
+    # Curvature-aware target-speed profile along the route (arc length -> speed).
+    s_prof, v_prof = compute_speed_profile(
+        X_des, config['a_lat_max'], config['a_acc_max'], config['a_dec_max'],
+        config['v_min'], config['v_max'],
+    )
+
     X_traj = np.zeros((3, Steps))
     X_curr = vehicle.get_location()
     theta  = np.deg2rad(vehicle.get_transform().rotation.yaw)
@@ -299,7 +366,6 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
     window_steps = Np
 
     kp, kd, ki    = 0.5, 0.1, 0.2
-    desired_speed = 15.0
     prev_speed    = 0.0
     U_prev_nom    = 0.0   # nominal steer applied at the previous step (for tube feedback)
 
@@ -310,7 +376,9 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
             if i % (Steps // 5) == 0:
                 print(f'  [{tag}] {100 * i // Steps}%')
 
-            # speed control
+            # speed control — target speed from the curvature-aware profile,
+            # sampled at the current arc length along the route.
+            desired_speed = float(np.interp(s0, s_prof, v_prof))
             vel        = vehicle.get_velocity()
             cur_speed  = np.linalg.norm([vel.x, vel.y, vel.z])
             accel      = (cur_speed - prev_speed) / 0.05
@@ -339,6 +407,11 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
                 options=options,
             )
             M_u = res.x
+            # If SLSQP diverges (e.g. an unstable adaptive/tube gain), it can
+            # return non-finite coefficients. Reset the warm start so the solver
+            # can recover next step instead of propagating NaN forever.
+            if not np.all(np.isfinite(M_u)):
+                M_u = np.zeros(N)
             U = leg.decode(M_u)
             U_mem.append(U[0])
 
@@ -355,6 +428,13 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
                 U_steer = U[0] + steering_force
             U_prev_nom = U[0]
 
+            # Sanitize the steering command before it reaches CARLA: a non-finite
+            # or out-of-range steer crashes the server (this is what wiped every
+            # tube_adaptive trial). Clamp to the valid [-1, 1] and neutralize NaN.
+            if not np.isfinite(U_steer):
+                U_steer = 0.0
+            U_steer = float(np.clip(U_steer, -1.0, 1.0))
+
             brake = 0.0
             if cur_speed - desired_speed > 2.0:
                 brake    = 0.3
@@ -363,10 +443,8 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0, win
             control          = carla.VehicleControl()
             control.throttle = float(throttle)
             control.brake    = float(brake)
-            control.steer    = float(U_steer)
+            control.steer    = U_steer
             vehicle.apply_control(control)
-            if wind_force != 0.0:
-                vehicle.add_force(carla.Vector3D(x=0.0, y=wind_force, z=0.0))
             V_log.append(cur_speed)
 
             world.tick()

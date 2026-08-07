@@ -54,12 +54,15 @@ import faulthandler; faulthandler.enable()
 from pathlib import Path
 from Experiments.Comparison.simulate_carla import simulate_carla
 
+# tube_adaptive + icy exercises the most at-risk v3 pieces at once: the
+# steering-sanitization fix (tube_adaptive used to crash), the tire-friction
+# fault, the Town04 map load, the curvature velocity profile, and the R term.
 rmse = simulate_carla(
     'hpc_smoketest',
     Path('Experiments/Tuning/logs/hpc_smoketest'),
-    method='tube',
-    steering_force=0.0,
-    wind_force=0.0,
+    method='tube_adaptive',
+    icy=True,
+    spawn_index=None,
     model_path='$SCRATCH/carla/model_trial_0',
 )
 print(f'RMSE: {rmse:.4f} m')

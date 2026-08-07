@@ -36,7 +36,7 @@ from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 import torch
 
-from Experiments.Comparison.config import config
+from Experiments.Comparison.config import config, CONDITIONS
 from Experiments.Comparison.simulate_carla import simulate_carla
 
 # ---------------------------------------------------------------------------
@@ -52,16 +52,11 @@ BASE_SEED  = 26
 
 # Study-name suffix used by the HPC array script (tune_array.sh names each study
 # "<method>_<STUDY_SUFFIX>"). --report reconstructs study names with the same rule.
-STUDY_SUFFIX = "sweep_v1"
+STUDY_SUFFIX = "sweep_v3"
 
-# All scenarios used during final validation (mirrors Comparison/run_exp.py)
-ALL_SCENARIOS = (
-    [{"name": "base",         "steering_force": 0.0,  "wind_force": 0.0}]
-    + [{"name": f"steer_{sf}", "steering_force": sf,   "wind_force": 0.0}
-       for sf in config["steering_force"]]
-    + [{"name": f"wind_{wf}",  "steering_force": 0.0,  "wind_force": float(wf)}
-       for wf in config["wind_force"]]
-)
+# Evaluation grid: each route (spawn index) x each disturbance condition. The
+# objective normalizes per-route by that route's nominal RMSE so no single route
+# dominates. Routes come from config['route_spawn_indices']; CONDITIONS from config.
 
 # Buffer size cap: ensure online training fires at least 200 times within TUNE_STEPS.
 # Training starts at step (Np + buffer_size + 1), so cap = TUNE_STEPS - Np - 200.
@@ -69,24 +64,30 @@ _MAX_BUFFER = TUNE_STEPS/2 - config["Np"]# 2 750
 
 # Search spaces per method.  Each entry: name → (kind, low, high)
 #   kind: "log_float" | "float" | "int"
+# "R" (MPC control-effort weight) is tuned for every method so the sweep finds
+# each method's tracking-vs-smoothness balance.
 SEARCH_SPACES: dict[str, dict] = {
     "replay_buffer": {
         "online_lr_replay":    ("log_float", 1e-8, 1e-6),
         "buffer_size":         ("int",        100,  _MAX_BUFFER),
         "online_weight_decay": ("log_float", 1e-7, 1e-3),
+        "R":                   ("log_float", 1e-2, 1e2),
     },
     "residual_dynamics": {
         "online_lr_residual":  ("log_float", 1e-8, 1e-6),
         "buffer_size":         ("int",        100,  _MAX_BUFFER),
         "online_weight_decay": ("log_float", 1e-7, 1e-3),
+        "R":                   ("log_float", 1e-2, 1e2),
     },
     "tube": {
-        "K_tube_heading": ("float", -50.0, 0.0),
+        "K_tube_heading": ("float",     -50.0, 0.0),
+        "R":              ("log_float",  1e-2, 1e2),
     },
     "tube_adaptive": {
         "K_tube_adaptive_heading": ("float",     -50.0,  0.0),
         "rbf_gamma":               ("log_float",   1.0, 1000.0),
         "rbf_sigma":               ("log_float",   0.05,  5.0),
+        "R":                       ("log_float",   1e-2,  1e2),
     },
 }
 
@@ -112,6 +113,8 @@ def patched_config(**overrides):
 def params_to_overrides(method: str, params: dict, steps: int) -> dict:
     """Translate Optuna params dict into config key/value overrides."""
     overrides: dict = {"steps": steps, "no_rendering_mode": True, "save_plots": False}
+    if "R" in params:
+        overrides["R"] = params["R"]
     if method == "replay_buffer":
         overrides["online_lr_replay"]    = params["online_lr_replay"]
         overrides["buffer_size"]         = params["buffer_size"]
@@ -145,19 +148,25 @@ def suggest_params(trial: optuna.Trial, method: str) -> dict:
     return params
 
 
-def make_objective(method, temp_dir, n_seeds, steps, scenarios, model_path,
+def make_objective(method, temp_dir, n_seeds, steps, routes, model_path,
                    rmse_cap=None):
-    """Return an Optuna objective closure over the given settings."""
+    """Return an Optuna objective closure over the given settings.
+
+    Objective = mean over (route x condition x seed) of the per-route-normalized
+    RMSE: each condition's RMSE is divided by that route's nominal RMSE, so route
+    difficulty does not skew the comparison. `rmse_cap` bounds that ratio.
+    """
 
     def objective(trial: optuna.Trial) -> float:
-        params   = suggest_params(trial, method)
+        params    = suggest_params(trial, method)
         overrides = params_to_overrides(method, params, steps)
 
         print(f"\n[Trial {trial.number}] {method}")
         for k, v in params.items():
             print(f"  {k}: {v:.3g}" if isinstance(v, float) else f"  {k}: {v}")
 
-        rmse_values: list[float] = []
+        norm_floor = config['rmse_norm_floor']
+        ratios: list[float] = []
 
         with patched_config(**overrides):
             for seed_idx in range(n_seeds):
@@ -167,29 +176,30 @@ def make_objective(method, temp_dir, n_seeds, steps, scenarios, model_path,
                 np.random.seed(seed)
                 torch.manual_seed(seed)
 
-                for scen in scenarios:
-                    with patched_config(seed=seed):
-                        rmse = simulate_carla(
-                            "tune_temp",
-                            temp_dir,
-                            method=method,
-                            steering_force=scen["steering_force"],
-                            wind_force=scen.get("wind_force", 0.0),
-                            model_path=model_path,
-                        )
-                    raw_rmse = rmse
-                    if rmse_cap is not None:
-                        rmse = min(rmse, rmse_cap)
-                    rmse_values.append(rmse)
-                    capped = "" if raw_rmse == rmse else f"  (capped from {raw_rmse:.4f})"
-                    print(
-                        f"  seed={seed_idx}  scen={scen.get('name', scen)}"
-                        f"  rmse={rmse:.4f} m{capped}"
-                    )
+                for spawn_index in routes:
+                    # Run every condition on this route; normalize by nominal.
+                    route_rmse: dict[str, float] = {}
+                    for cond in CONDITIONS:
+                        with patched_config(seed=seed):
+                            route_rmse[cond["name"]] = simulate_carla(
+                                "tune_temp", temp_dir, method=method,
+                                steering_force=cond["steering_force"],
+                                flat_tire=cond["flat_tire"], icy=cond["icy"],
+                                spawn_index=spawn_index, model_path=model_path,
+                            )
 
-        mean_rmse = float(np.mean(rmse_values))
-        print(f"[Trial {trial.number}] → mean RMSE = {mean_rmse:.4f} m")
-        return mean_rmse
+                    base = max(route_rmse["nominal"], norm_floor)
+                    for cname, rmse in route_rmse.items():
+                        r = rmse / base
+                        if rmse_cap is not None:
+                            r = min(r, rmse_cap)
+                        ratios.append(r)
+                        print(f"  seed={seed_idx}  route={spawn_index}  "
+                              f"cond={cname}  rmse={rmse:.4f} m  norm={r:.3f}")
+
+        score = float(np.mean(ratios))
+        print(f"[Trial {trial.number}] → mean normalized RMSE = {score:.4f}")
+        return score
 
     return objective
 
@@ -199,37 +209,53 @@ def make_objective(method, temp_dir, n_seeds, steps, scenarios, model_path,
 
 def run_validation(method: str, params: dict, log_dir: Path,
                    model_path: str, steps: int = FULL_STEPS) -> dict:
-    """Run the best params on all 7 disturbance scenarios at full step count."""
+    """Run the best params over every route x condition at full step count.
+
+    Records the raw RMSE for each (route, condition) plus the per-route
+    normalized ratio, so the writeup can show both absolute tracking and
+    disturbance-rejection. Result keys are "route<idx>/<condition>".
+    """
     print(f"\n{'='*55}")
     print(f"Validation — method: {method}  ({steps} steps)")
     print(f"Params: {params}")
 
-    overrides = params_to_overrides(method, params, steps)
-    val_dir   = log_dir / "validation"
+    overrides   = params_to_overrides(method, params, steps)
+    routes      = config['route_spawn_indices']
+    norm_floor  = config['rmse_norm_floor']
+    val_dir     = log_dir / "validation"
     (val_dir / "plots").mkdir(parents=True, exist_ok=True)
     (val_dir / "models").mkdir(parents=True, exist_ok=True)
 
     results: dict[str, float] = {}
+    normalized: dict[str, float] = {}
     with patched_config(**overrides):
-        for scen in ALL_SCENARIOS:
-            name = scen["name"]
-            print(f"\n  Scenario: {name}")
-            rmse = simulate_carla(
-                name, val_dir,
-                method=method,
-                steering_force=scen["steering_force"],
-                wind_force=scen.get("wind_force", 0.0),
-                model_path=model_path,
-            )
-            results[name] = rmse
-            print(f"  {name:<20}: RMSE = {rmse:.4f} m")
+        for spawn_index in routes:
+            route_rmse: dict[str, float] = {}
+            for cond in CONDITIONS:
+                name = cond["name"]
+                print(f"\n  Route {spawn_index} / {name}")
+                rmse = simulate_carla(
+                    f"route{spawn_index}_{name}", val_dir, method=method,
+                    steering_force=cond["steering_force"],
+                    flat_tire=cond["flat_tire"], icy=cond["icy"],
+                    spawn_index=spawn_index, model_path=model_path,
+                )
+                route_rmse[name] = rmse
+                print(f"  route{spawn_index}/{name:<12}: RMSE = {rmse:.4f} m")
+
+            base = max(route_rmse["nominal"], norm_floor)
+            for name, rmse in route_rmse.items():
+                key = f"route{spawn_index}/{name}"
+                results[key]    = rmse
+                normalized[key] = rmse / base
 
     print(f"\n{'--- Validation Summary ':->55}")
-    for name, rmse in results.items():
-        print(f"  {name:<20}: {rmse:.4f} m")
-    print(f"  {'Mean':<20}: {np.mean(list(results.values())):.4f} m")
+    for key, rmse in results.items():
+        print(f"  {key:<22}: {rmse:.4f} m   (norm {normalized[key]:.3f})")
+    print(f"  {'Mean normalized':<22}: {np.mean(list(normalized.values())):.4f}")
 
-    out = {"method": method, "params": params, "steps": steps, "results": results}
+    out = {"method": method, "params": params, "steps": steps,
+           "results": results, "normalized": normalized}
     with open(log_dir / "validation_results.json", "w") as f:
         json.dump(out, f, indent=2)
     print(f"\nSaved to {log_dir}/validation_results.json")
@@ -333,12 +359,13 @@ def main() -> None:
                         help="One or more methods to tune sequentially")
     parser.add_argument("--n_trials", type=int, default=50,
                         help="Optuna trials to run (default 50)")
-    parser.add_argument("--n_seeds", type=int, default=2,
-                        help="CARLA runs per scenario per trial for noise averaging (default 3)")
+    parser.add_argument("--n_seeds", type=int, default=1,
+                        help="Seeds per route/condition for noise averaging "
+                             "(default 1; route diversity provides the averaging)")
     parser.add_argument("--rmse_cap", type=float, default=None,
-                        help="Upper-bound each run's RMSE at this value before averaging. "
-                             "Stops divergent scenarios (e.g. high wind) from dominating the "
-                             "objective. Changes objective semantics — use a fresh study.")
+                        help="Upper-bound the per-route NORMALIZED RMSE ratio at this value. "
+                             "Stops any single blown-up condition from dominating the objective. "
+                             "Changes objective semantics — use a fresh study.")
     parser.add_argument("--steps", type=int, default=TUNE_STEPS,
                         help=f"Sim steps per run (default {TUNE_STEPS})")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL_PATH,
@@ -392,7 +419,7 @@ def main() -> None:
 
     batch_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    tune_scenarios = ALL_SCENARIOS
+    routes = config['route_spawn_indices']
 
     for method in args.method:
         print(f"\n{'='*55}")
@@ -439,10 +466,11 @@ def main() -> None:
         print(f"Study:      {study_name}")
         print(f"Log dir:    {log_dir}")
         print(f"RMSE cap:   {args.rmse_cap}")
-        n_runs = args.n_seeds * len(tune_scenarios)
-        print(f"Steps/run:  {args.steps}  ×  {args.n_seeds} seeds  ×  {len(tune_scenarios)} scenarios"
-              f"  = {args.steps * n_runs} sim-steps / Optuna trial")
-        print(f"Scenarios:  {[s['name'] for s in tune_scenarios]}")
+        n_runs = args.n_seeds * len(routes) * len(CONDITIONS)
+        print(f"Grid:       {args.n_seeds} seeds × {len(routes)} routes × {len(CONDITIONS)} conditions"
+              f"  = {n_runs} rollouts / trial  ({args.steps * n_runs} sim-steps)")
+        print(f"Routes:     {routes}")
+        print(f"Conditions: {[c['name'] for c in CONDITIONS]}")
         print(f"n_trials:   {args.n_trials}  (+{already_done} already completed)")
         print(f"Search space:")
         for k, v in SEARCH_SPACES[method].items():
@@ -451,7 +479,7 @@ def main() -> None:
         t0        = time.time()
         objective = make_objective(
             method, temp_dir, args.n_seeds,
-            args.steps, tune_scenarios, args.model,
+            args.steps, routes, args.model,
             rmse_cap=args.rmse_cap,
         )
         study.optimize(objective, n_trials=args.n_trials)
@@ -462,7 +490,7 @@ def main() -> None:
 
         best = study.best_trial
         print(f"\n{'='*55}")
-        print(f"Best trial #{best.number}  —  mean RMSE = {best.value:.4f} m")
+        print(f"Best trial #{best.number}  —  mean normalized RMSE = {best.value:.4f}")
         for k, v in best.params.items():
             print(f"  {k}: {v:.6g}" if isinstance(v, float) else f"  {k}: {v}")
         print(f"Elapsed: {h:02d}:{m:02d}:{s:02d}")
@@ -475,7 +503,7 @@ def main() -> None:
             "params":           best.params,
             "tune_steps":       args.steps,
             "n_seeds":          args.n_seeds,
-            "tuning_scenario":  tune_scenarios[0],
+            "routes":           routes,
         }
         with open(log_dir / "best_params.json", "w") as f:
             json.dump(best_info, f, indent=2)

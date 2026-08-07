@@ -25,9 +25,26 @@ config = {
     "kdV": 2,
     "eps": 0.001,
 
-# Disturbance
-    "steering_force": [0.1,0.2,0.3],
-    "wind_force": [5000, 10000, 15000],
+# Evaluation routes (Town04 spawn-point indices; refine with route_survey.py)
+    "map": "Town04",
+    "route_spawn_indices": [0, 1, 2, 3],
+
+# Disturbances
+    "steer_bias": 0.2,            # steering-offset magnitude for the steer condition
+    "flat_tire_wheel": 0,         # wheel index given reduced grip (front-left)
+    "flat_tire_friction": 0.5,    # tire_friction on the flat wheel (default ~3.0-3.5)
+    "icy_friction": 1.0,          # tire_friction on all wheels for the icy condition
+
+# Velocity profile (curvature-aware; see simulate_carla.compute_speed_profile)
+    "v_min": 5.0,
+    "v_max": 20.0,
+    "a_lat_max": 3.0,             # lateral-accel budget [m/s^2]
+    "a_acc_max": 2.0,             # longitudinal accel limit [m/s^2]
+    "a_dec_max": 3.0,             # longitudinal decel limit [m/s^2]
+
+# Objective normalization
+    "rmse_norm_floor": 0.3,       # floor on the per-route nominal RMSE denominator [m]
+
 # Plant Model
     "l": 2.5,
     "dt": 0.005,
@@ -59,6 +76,15 @@ config = {
     "no_rendering_mode": False,
     "save_plots": True,   # per-rollout diagnostic plots; tuning sets this False
 }
+
+# Disturbance conditions evaluated on every route (single source of truth for
+# both the tuner and run_exp). Each is passed straight to simulate_carla.
+CONDITIONS = [
+    {"name": "nominal",   "steering_force": 0.0,                  "flat_tire": False, "icy": False},
+    {"name": "steer",     "steering_force": config["steer_bias"], "flat_tire": False, "icy": False},
+    {"name": "flat_tire", "steering_force": 0.0,                  "flat_tire": True,  "icy": False},
+    {"name": "icy",       "steering_force": 0.0,                  "flat_tire": False, "icy": True},
+]
 
 class SimpleNN(nn.Module):
     def __init__(self, input_size, output_size):

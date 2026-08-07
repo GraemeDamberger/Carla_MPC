@@ -3,7 +3,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from Experiments.Comparison.config import config
+from Experiments.Comparison.config import config, CONDITIONS
 from Experiments.Comparison.generate_data import generate_data
 from Experiments.Comparison.simulate_carla import simulate_carla
 from Experiments.Comparison.train import train
@@ -27,12 +27,14 @@ METHODS = ['normal', 'tube', 'replay_buffer', 'residual_dynamics','tube_adaptive
 COLORS  = ['steelblue', 'darkorange', 'green', 'crimson', 'mediumpurple']
 #COLORS  = ['steelblue', 'darkorange','green']
 
-# 7 trials: 1 base + 3 steering disturbances + 3 wind-force disturbances
-trials = [{'name': 'base', 'steering_force': 0.0, 'wind_force': 0.0}]
-for sf in config['steering_force']:
-    trials.append({'name': f'steer_{sf}', 'steering_force': sf, 'wind_force': 0.0})
-for wf in config['wind_force']:
-    trials.append({'name': f'wind_{wf}', 'steering_force': 0.0, 'wind_force': float(wf)})
+# Evaluation grid: every route (spawn index) x every disturbance condition.
+routes = config['route_spawn_indices']
+trials = [
+    {'name': f"r{r}_{c['name']}", 'spawn_index': r,
+     'steering_force': c['steering_force'],
+     'flat_tire': c['flat_tire'], 'icy': c['icy']}
+    for r in routes for c in CONDITIONS
+]
 
 t_start = time.time()
 
@@ -56,14 +58,15 @@ else:
 results = {t['name']: {} for t in trials}
 
 for trial in trials:
-    print(f"\n=== Trial: {trial['name']}  "
-          f"(steering_force={trial['steering_force']}, wind_force={trial['wind_force']}) ===")
+    print(f"\n=== Trial: {trial['name']} ===")
     for method in METHODS:
         rmse = simulate_carla(
             trial['name'], log_dir,
             method=method,
             steering_force=trial['steering_force'],
-            wind_force=trial['wind_force'],
+            flat_tire=trial['flat_tire'],
+            icy=trial['icy'],
+            spawn_index=trial['spawn_index'],
             model_path=model_path,
         )
         results[trial['name']][method] = rmse
