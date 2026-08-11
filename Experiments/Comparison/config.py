@@ -38,7 +38,8 @@ config = {
 
 # Velocity profile (curvature-aware; see simulate_carla.compute_speed_profile)
     "v_min": 5.0,
-    "v_max": 20.0,
+    "v_max": 15.0,            # matches the base model's training speed (was 20 →
+                             #  out-of-regime tracking on fast routes)
     "a_lat_max": 3.0,             # lateral-accel budget [m/s^2]
     "a_acc_max": 2.0,             # longitudinal accel limit [m/s^2]
     "a_dec_max": 3.0,             # longitudinal decel limit [m/s^2]
