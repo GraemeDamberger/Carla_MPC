@@ -45,7 +45,9 @@ config = {
     "a_dec_max": 3.0,             # longitudinal decel limit [m/s^2]
 
 # Objective normalization
-    "rmse_norm_floor": 0.3,       # floor on the per-route nominal RMSE denominator [m]
+    "rmse_norm_floor": 0.1,       # floor on the per-route nominal RMSE denominator [m].
+                                  # Must stay below observed nominal RMSE (~0.25 m at
+                                  # v_max=15) or it binds and flattens normalization.
 
 # Plant Model
     "l": 2.5,
