@@ -52,7 +52,7 @@ BASE_SEED  = 26
 
 # Study-name suffix used by the HPC array script (tune_array.sh names each study
 # "<method>_<STUDY_SUFFIX>"). --report reconstructs study names with the same rule.
-STUDY_SUFFIX = "sweep_v3"
+STUDY_SUFFIX = "sweep_v4"
 
 # Evaluation grid: each route (spawn index) x each disturbance condition. The
 # objective normalizes per-route by that route's nominal RMSE so no single route
@@ -110,9 +110,15 @@ def patched_config(**overrides):
                 del config[k]
 
 
-def params_to_overrides(method: str, params: dict, steps: int) -> dict:
-    """Translate Optuna params dict into config key/value overrides."""
-    overrides: dict = {"steps": steps, "no_rendering_mode": True, "save_plots": False}
+def params_to_overrides(method: str, params: dict, steps: int,
+                        save_plots: bool = False) -> dict:
+    """Translate Optuna params dict into config key/value overrides.
+
+    save_plots stays False for tuning (hundreds of throwaway rollouts) and is
+    turned on for validation, where the trajectory plots are the deliverable.
+    """
+    overrides: dict = {"steps": steps, "no_rendering_mode": True,
+                       "save_plots": save_plots}
     if "R" in params:
         overrides["R"] = params["R"]
     if method == "replay_buffer":
@@ -184,7 +190,8 @@ def make_objective(method, temp_dir, n_seeds, steps, routes, model_path,
                             route_rmse[cond["name"]] = simulate_carla(
                                 "tune_temp", temp_dir, method=method,
                                 steering_force=cond["steering_force"],
-                                flat_tire=cond["flat_tire"], icy=cond["icy"],
+                                flat_tire=cond["flat_tire"],
+                                surface=cond["surface"], wind=cond["wind"],
                                 spawn_index=spawn_index, model_path=model_path,
                             )
 
@@ -219,7 +226,8 @@ def run_validation(method: str, params: dict, log_dir: Path,
     print(f"Validation — method: {method}  ({steps} steps)")
     print(f"Params: {params}")
 
-    overrides   = params_to_overrides(method, params, steps)
+    # Validation keeps its plots: the trajectory figures are the point.
+    overrides   = params_to_overrides(method, params, steps, save_plots=True)
     routes      = config['route_spawn_indices']
     norm_floor  = config['rmse_norm_floor']
     val_dir     = log_dir / "validation"
@@ -237,7 +245,8 @@ def run_validation(method: str, params: dict, log_dir: Path,
                 rmse = simulate_carla(
                     f"route{spawn_index}_{name}", val_dir, method=method,
                     steering_force=cond["steering_force"],
-                    flat_tire=cond["flat_tire"], icy=cond["icy"],
+                    flat_tire=cond["flat_tire"],
+                    surface=cond["surface"], wind=cond["wind"],
                     spawn_index=spawn_index, model_path=model_path,
                 )
                 route_rmse[name] = rmse
@@ -302,7 +311,8 @@ def run_report(methods: list[str], suffix: str = STUDY_SUFFIX,
             print("  no completed trial yet — nothing to report")
             continue
 
-        print(f"  best trial #{best.number}: mean RMSE = {best.value:.4f} m")
+        # v3+ objective is a dimensionless per-route-normalized ratio, not metres.
+        print(f"  best trial #{best.number}: mean normalized RMSE = {best.value:.4f}")
         for k, v in best.params.items():
             print(f"    {k}: {v:.6g}" if isinstance(v, float) else f"    {k}: {v}")
 

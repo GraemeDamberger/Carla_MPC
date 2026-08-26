@@ -34,7 +34,7 @@ METHOD="${1:-tube}"
 N_TRIALS="${2:-10}"
 N_SEEDS="${3:-1}"
 RMSE_CAP="${4:-5.0}"                      # normalized-RMSE-ratio upper bound (see tune.py)
-STUDY_NAME="${METHOD}_${STUDY_SUFFIX:-sweep_v3}"
+STUDY_NAME="${METHOD}_${STUDY_SUFFIX:-sweep_v4}"
 
 module load apptainer python/3.11
 source ~/hpo_env/bin/activate

@@ -53,9 +53,12 @@ SCENARIO_ORDER = [
     "wind_5000", "wind_10000", "wind_15000",
 ]
 
-SEED_RE  = re.compile(r"seed=(\d+)\s+scen=(\S+)\s+rmse=([\d.]+)")
-START_RE = re.compile(r"^\[Trial (\d+)\]\s+(\w+)\s*$")
-STUDY_RE = re.compile(r"^Study:\s+(\S+)")
+# v3 logs one line per rollout as "seed=0 route=20 cond=icy rmse=1.23 m norm=4.1";
+# v1/v2 used "seed=0 scen=wind_5000 rmse=1.23 m". Support both.
+SEED_RE   = re.compile(r"seed=(\d+)\s+scen=(\S+)\s+rmse=([\d.]+)")
+ROUTE_RE  = re.compile(r"seed=(\d+)\s+route=(\S+)\s+cond=(\S+)\s+rmse=([\d.]+)")
+START_RE  = re.compile(r"^\[Trial (\d+)\]\s+(\w+)\s*$")
+STUDY_RE  = re.compile(r"^Study:\s+(\S+)")
 
 # ---------------------------------------------------------------------------
 # Loading
@@ -98,8 +101,15 @@ def parse_logs(log_glob: str, suffix: str) -> dict:
                     if tm:
                         cur_trial = int(tm.group(1))
                         continue
-                    em = SEED_RE.search(line)
-                    if em and method is not None and cur_trial is not None:
+                    if method is None or cur_trial is None:
+                        continue
+                    rm = ROUTE_RE.search(line)          # v3: route x condition
+                    if rm:
+                        _seed, route, cond, rmse = rm.groups()
+                        data[method][cur_trial][f"r{route}_{cond}"].append(float(rmse))
+                        continue
+                    em = SEED_RE.search(line)           # v1/v2: flat scenario
+                    if em:
                         _seed, scen, rmse = em.groups()
                         data[method][cur_trial][scen].append(float(rmse))
         except OSError as e:
@@ -110,6 +120,15 @@ def parse_logs(log_glob: str, suffix: str) -> dict:
 def scenario_means(trial_scens: dict) -> dict:
     """{scenario: [rmse per seed]} -> {scenario: mean over seeds}."""
     return {s: sum(v) / len(v) for s, v in trial_scens.items() if v}
+
+
+def order_scenarios(per_scen: dict, methods: list) -> list:
+    """Stable scenario ordering: known v1/v2 names first, then anything else
+    (v3's r<route>_<condition> keys) sorted, so both formats render."""
+    seen = {s for m in methods for s in per_scen.get(m, {})}
+    known = [s for s in SCENARIO_ORDER if s in seen]
+    rest  = sorted(seen - set(known))
+    return known + rest
 
 # ---------------------------------------------------------------------------
 # Export
@@ -192,8 +211,7 @@ def write_per_scenario_csv(per_scen, out_dir: Path) -> None:
               "(pass --logs pointing at the Slurm .out files)")
         return
     methods   = list(per_scen)
-    scenarios = [s for s in SCENARIO_ORDER
-                 if any(s in per_scen[m] for m in methods)]
+    scenarios = order_scenarios(per_scen, methods)
     path = out_dir / "per_scenario_best.csv"
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
@@ -258,8 +276,7 @@ def plot_per_scenario(per_scen, out_dir: Path) -> None:
         return
     import numpy as np
     methods   = list(per_scen)
-    scenarios = [s for s in SCENARIO_ORDER
-                 if any(s in per_scen[m] for m in methods)]
+    scenarios = order_scenarios(per_scen, methods)
     x     = np.arange(len(scenarios))
     width = 0.8 / max(len(methods), 1)
     fig, ax = plt.subplots(figsize=(11, 5))

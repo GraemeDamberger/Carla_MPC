@@ -30,11 +30,43 @@ config = {
     "map": "Town04",
     "route_spawn_indices": [20, 40, 0, 180],
 
-# Disturbances
-    "steer_bias": 0.2,            # steering-offset magnitude for the steer condition
-    "flat_tire_wheel": 0,         # wheel index given reduced grip (front-left)
-    "flat_tire_friction": 0.5,    # tire_friction on the flat wheel (default ~3.0-3.5)
-    "icy_friction": 1.0,          # tire_friction on all wheels for the icy condition
+# ---------------------------------------------------------------------------
+# Disturbances — physically grounded. All wheel parameters are expressed as
+# RATIOS of the vehicle's own runtime defaults, so they stay meaningful across
+# vehicles and CARLA versions. Dump the actual defaults with
+#   python -m Experiments.Tuning.hpc.dump_wheel_defaults
+# ---------------------------------------------------------------------------
+    "steer_bias": 0.2,            # steering-offset magnitude [-1,1 command units]
+
+# Road surface. CARLA's default tire_friction corresponds to dry asphalt.
+# Scales are ratios of published tyre-road PEAK friction coefficients:
+#   dry asphalt mu~0.85 | wet mu~0.50 | packed snow mu~0.25 | ice mu~0.12
+    "wet_friction_scale":  0.60,
+    "icy_friction_scale":  0.15,  # true ice, not packed snow (was 0.29 -> snow)
+
+# Flat / severely under-inflated tyre on ONE wheel. A deflation is not mainly a
+# peak-mu change: the dominant effects are a loss of cornering stiffness, a
+# smaller rolling radius, and a large rolling-resistance rise that yields an
+# asymmetric yaw moment. Modelled as scales on the corresponding wheel params.
+    "flat_tire_wheel":      0,    # 0=FL, 1=FR, 2=RL, 3=RR
+    "flat_lat_stiff_scale": 0.45, # cornering-stiffness collapse (dominant effect)
+    "flat_radius_scale":    0.90, # deflated rolling radius
+    "flat_damping_scale":   3.0,  # rolling-resistance proxy -> asymmetric drag
+    "flat_friction_scale":  0.85, # peak mu falls only modestly
+
+# Steady crosswind, applied as an aerodynamic force each step:
+#   F = 0.5 * rho * V_rel^2 * A * C   (C_S laterally, C_D longitudinally)
+# 80 km/h = Beaufort 9 (severe gale); at 15 m/s cruise this gives ~1.8 kN side
+# force ~= 0.12 g on a 1500 kg vehicle, ~14% of available tyre grip. Severe but
+# recoverable. For reference the old 15 kN wind implied a ~250 km/h relative
+# wind (Category 5) and exceeded total tyre grip (mu*m*g ~ 12.5 kN) outright,
+# which is why no controller could reject it.
+    "wind_speed_kmh": 80.0,
+    "wind_dir_deg":   90.0,       # bearing of the wind in the world XY plane
+    "air_density":    1.225,      # rho [kg/m^3]
+    "frontal_area":   2.2,        # A [m^2], reference area for both coefficients
+    "side_force_coeff": 2.2,      # C_S at full side-on yaw
+    "drag_coeff":       0.35,     # C_D
 
 # Velocity profile (curvature-aware; see simulate_carla.compute_speed_profile)
     "v_min": 5.0,
@@ -83,11 +115,15 @@ config = {
 
 # Disturbance conditions evaluated on every route (single source of truth for
 # both the tuner and run_exp). Each is passed straight to simulate_carla.
+# `surface` is None | "wet" | "icy"; `wind` enables the crosswind model.
+_NO_FAULT = {"flat_tire": False, "surface": None, "wind": False}
+
 CONDITIONS = [
-    {"name": "nominal",   "steering_force": 0.0,                  "flat_tire": False, "icy": False},
-    {"name": "steer",     "steering_force": config["steer_bias"], "flat_tire": False, "icy": False},
-    {"name": "flat_tire", "steering_force": 0.0,                  "flat_tire": True,  "icy": False},
-    {"name": "icy",       "steering_force": 0.0,                  "flat_tire": False, "icy": True},
+    {"name": "nominal",   "steering_force": 0.0,                  **_NO_FAULT},
+    {"name": "steer",     "steering_force": config["steer_bias"], **_NO_FAULT},
+    {"name": "flat_tire", "steering_force": 0.0, "flat_tire": True,  "surface": None,  "wind": False},
+    {"name": "icy",       "steering_force": 0.0, "flat_tire": False, "surface": "icy", "wind": False},
+    {"name": "crosswind", "steering_force": 0.0, "flat_tire": False, "surface": None,  "wind": True},
 ]
 
 class SimpleNN(nn.Module):

@@ -31,8 +31,8 @@ COLORS  = ['steelblue', 'darkorange', 'green', 'crimson', 'mediumpurple']
 routes = config['route_spawn_indices']
 trials = [
     {'name': f"r{r}_{c['name']}", 'spawn_index': r,
-     'steering_force': c['steering_force'],
-     'flat_tire': c['flat_tire'], 'icy': c['icy']}
+     'steering_force': c['steering_force'], 'flat_tire': c['flat_tire'],
+     'surface': c['surface'], 'wind': c['wind']}
     for r in routes for c in CONDITIONS
 ]
 
@@ -65,7 +65,8 @@ for trial in trials:
             method=method,
             steering_force=trial['steering_force'],
             flat_tire=trial['flat_tire'],
-            icy=trial['icy'],
+            surface=trial['surface'],
+            wind=trial['wind'],
             spawn_index=trial['spawn_index'],
             model_path=model_path,
         )

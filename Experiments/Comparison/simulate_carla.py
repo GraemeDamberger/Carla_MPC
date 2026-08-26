@@ -88,15 +88,91 @@ def compute_speed_profile(path_xy, a_lat_max, a_acc_max, a_dec_max, v_min, v_max
     return s, v
 
 
+def apply_wheel_faults(vehicle, flat_tire=False, surface=None):
+    """Apply plant faults by scaling the vehicle's OWN default wheel parameters.
+
+    surface   : None | 'wet' | 'icy' — uniform peak-friction scaling on all wheels,
+                from published tyre-road peak friction coefficients.
+    flat_tire : one wheel deflated. A deflation is not principally a peak-mu
+                change: cornering stiffness collapses, the rolling radius drops
+                and rolling resistance rises sharply, giving an asymmetric yaw
+                moment. Modelled on config['flat_*_scale'].
+
+    Returns a dict of the applied changes, for logging/provenance.
+    """
+    pc      = vehicle.get_physics_control()
+    wheels  = pc.wheels
+    applied = {}
+
+    if surface is not None:
+        scale = config[f"{surface}_friction_scale"]
+        for w in wheels:
+            w.tire_friction *= scale
+        applied["surface"] = {"kind": surface, "friction_scale": scale,
+                              "tire_friction": wheels[0].tire_friction}
+
+    if flat_tire:
+        idx = config['flat_tire_wheel']
+        w   = wheels[idx]
+        before = {"lat_stiff_value": w.lat_stiff_value, "radius": w.radius,
+                  "damping_rate": w.damping_rate, "tire_friction": w.tire_friction}
+        w.lat_stiff_value *= config['flat_lat_stiff_scale']
+        w.radius          *= config['flat_radius_scale']
+        w.damping_rate    *= config['flat_damping_scale']
+        w.tire_friction   *= config['flat_friction_scale']
+        applied["flat_tire"] = {
+            "wheel": idx, "before": before,
+            "after": {"lat_stiff_value": w.lat_stiff_value, "radius": w.radius,
+                      "damping_rate": w.damping_rate, "tire_friction": w.tire_friction},
+        }
+
+    pc.wheels = wheels
+    vehicle.apply_physics_control(pc)
+    return applied
+
+
+def crosswind_force(vehicle, wind_vec):
+    """Steady-crosswind aerodynamic force on the vehicle, in world coordinates.
+
+    Uses the relative air velocity (wind minus vehicle velocity), so the
+    aerodynamic yaw angle — and hence the side force — changes as the vehicle
+    turns, rather than being a fixed lateral push.
+
+        F = 0.5 * rho * V_rel^2 * A * C,    C_S = C_S,max * sin(beta),  C_D const
+
+    Returns (fx, fy) in Newtons, or None when the relative wind is negligible.
+    """
+    v      = vehicle.get_velocity()
+    v_rel  = wind_vec - np.array([v.x, v.y])
+    speed  = float(np.linalg.norm(v_rel))
+    if speed < 1e-3:
+        return None
+
+    yaw = np.deg2rad(vehicle.get_transform().rotation.yaw)
+    fwd = np.array([np.cos(yaw),  np.sin(yaw)])
+    lat = np.array([-np.sin(yaw), np.cos(yaw)])
+
+    # aerodynamic yaw angle between the relative wind and the vehicle axis
+    beta = np.arctan2(float(v_rel @ lat), float(v_rel @ fwd))
+    q    = 0.5 * config['air_density'] * speed ** 2 * config['frontal_area']
+
+    f_lat  = q * config['side_force_coeff'] * np.sin(beta)
+    f_long = q * config['drag_coeff'] * np.cos(beta)
+    f      = f_lat * lat + f_long * fwd
+    return float(f[0]), float(f[1])
+
+
 def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
-                   flat_tire=False, icy=False, spawn_index=None, model_path=None):
+                   flat_tire=False, surface=None, wind=False,
+                   spawn_index=None, model_path=None):
     """
     Run one CARLA simulation episode.
 
     method        : 'normal' | 'tube' | 'replay_buffer' | 'residual_dynamics' | 'tube_adaptive'
     steering_force: constant offset added to every steering command (actuator bias)
-    flat_tire     : reduce grip on one wheel (config['flat_tire_wheel'/'flat_tire_friction'])
-    icy           : reduce grip on all wheels (config['icy_friction'])
+    flat_tire     : deflate one wheel (see apply_wheel_faults)
+    surface       : None | 'wet' | 'icy' — uniform road-friction reduction
+    wind          : apply the steady-crosswind aerodynamic model
     spawn_index   : spawn-point index selecting the route (default config route 0)
     """
     if model_path is None:
@@ -295,18 +371,21 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
     vehicle      = world.spawn_actor(vehicle_bp[3], spawn_point)
     time.sleep(1)
 
-    # Plant-fault disturbances via per-wheel tire friction.
-    if flat_tire or icy:
-        pc     = vehicle.get_physics_control()
-        wheels = pc.wheels
-        if icy:
-            for w in wheels:
-                w.tire_friction = config['icy_friction']
-        else:  # flat / low-grip: a single wheel
-            wheels[config['flat_tire_wheel']].tire_friction = config['flat_tire_friction']
-        pc.wheels = wheels
-        vehicle.apply_physics_control(pc)
+    # Plant-fault disturbances (scaled from this vehicle's own defaults).
+    if flat_tire or surface is not None:
+        applied = apply_wheel_faults(vehicle, flat_tire=flat_tire, surface=surface)
+        print(f'  [{trial_name}] wheel faults: {applied}')
         world.tick()
+
+    # Steady crosswind: constant world-frame wind vector, force recomputed each
+    # step from the relative air velocity.
+    wind_vec = None
+    if wind:
+        wind_speed = config['wind_speed_kmh'] / 3.6
+        wind_dir   = np.deg2rad(config['wind_dir_deg'])
+        wind_vec   = wind_speed * np.array([np.cos(wind_dir), np.sin(wind_dir)])
+        print(f'  [{trial_name}] crosswind: {config["wind_speed_kmh"]} km/h '
+              f'({wind_speed:.1f} m/s) bearing {config["wind_dir_deg"]}deg')
 
     # The RGB camera is only needed for video recording. Under -nullrhi
     # (headless HPC) there is no render device, so spawning a camera sensor
@@ -360,6 +439,7 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
     options = {'eps': config['eps']}
     s0, error_i  = 0.0, 0.0
     V_log, U_mem = [], [0]
+    F_wind_log   = []          # |crosswind force| per step, for reporting
     M_u          = np.zeros(N)
 
     # online-learning memory state
@@ -447,6 +527,11 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
             control.brake    = float(brake)
             control.steer    = U_steer
             vehicle.apply_control(control)
+            if wind_vec is not None:
+                wf = crosswind_force(vehicle, wind_vec)
+                if wf is not None:
+                    vehicle.add_force(carla.Vector3D(x=wf[0], y=wf[1], z=0.0))
+                    F_wind_log.append(float(np.hypot(*wf)))
             V_log.append(cur_speed)
 
             world.tick()
@@ -515,29 +600,59 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
     # Skipped during hyperparameter sweeps (config['save_plots'] = False) and
     # when matplotlib is unavailable — the sweep only needs the returned RMSE.
     if config.get('save_plots', True) and plt is not None:
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.plot(V_log, label='V')
-        ax.axhline(desired_speed, color='r', linestyle='--', label='V_des')
+        # speed: commanded profile vs achieved
+        steps_run = len(V_log)
+        s_walk    = np.cumsum(np.array(V_log) * dt)
+        v_target  = np.interp(s_walk, s_prof, v_prof)
+        fig, ax = plt.subplots(figsize=(9, 4))
+        ax.plot(V_log, label='achieved', linewidth=1.2)
+        ax.plot(v_target, 'r--', label='profile target', linewidth=1.2)
         ax.set_xlabel('Step')
         ax.set_ylabel('Speed [m/s]')
         ax.set_title(f'Speed — {tag}')
         ax.legend()
-        ax.grid(True)
+        ax.grid(True, alpha=0.4)
         plt.tight_layout()
         save_plot(log_dir, fig, f'velocity_{tag}')
         plt.close(fig)
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.plot(X_traj[0], X_traj[1], label='Tracked', linewidth=2)
-        ax.plot(X_des[0, ::5], X_des[1, ::5], 'o', markersize=4, label='Reference')
+        # top-down trajectory, coloured by instantaneous tracking error
+        err = np.linalg.norm(error_array[:steps_run], axis=1)
+        fig, ax = plt.subplots(figsize=(9, 8))
+        ax.plot(X_des[0], X_des[1], '-', color='0.75', linewidth=3,
+                label='Reference path', zorder=1)
+        sc = ax.scatter(X_traj[0, :steps_run], X_traj[1, :steps_run],
+                        c=err, cmap='viridis', s=3, zorder=2)
+        cb = fig.colorbar(sc, ax=ax, shrink=0.8)
+        cb.set_label('Tracking error [m]')
+        ax.plot(X_traj[0, 0], X_traj[1, 0], 'o', color='tab:green',
+                markersize=10, label='Start', zorder=3)
+        ax.plot(X_traj[0, steps_run-1], X_traj[1, steps_run-1], 's',
+                color='tab:red', markersize=9, label='End', zorder=3)
+        # same expression as the returned metric, so plot and report agree
+        rmse_now = float(np.sqrt(np.mean(error_array ** 2)))
+        subtitle = f'RMSE {rmse_now:.3f} m'
+        if F_wind_log:
+            subtitle += f'  ·  mean |F_wind| {np.mean(F_wind_log):.0f} N'
         ax.set_xlabel('X [m]')
         ax.set_ylabel('Y [m]')
-        ax.set_title(f'Trajectory — {tag}')
-        ax.legend()
-        ax.grid(True)
+        ax.set_title(f'Trajectory — {tag}\n{subtitle}')
+        ax.legend(loc='best')
+        ax.grid(True, alpha=0.4)
         ax.axis('equal')
         plt.tight_layout()
         save_plot(log_dir, fig, f'trajectory_{tag}')
+        plt.close(fig)
+
+        # tracking error against distance travelled
+        fig, ax = plt.subplots(figsize=(9, 4))
+        ax.plot(s_walk, err, linewidth=1.0)
+        ax.set_xlabel('Distance along route [m]')
+        ax.set_ylabel('Tracking error [m]')
+        ax.set_title(f'Error vs distance — {tag}')
+        ax.grid(True, alpha=0.4)
+        plt.tight_layout()
+        save_plot(log_dir, fig, f'error_{tag}')
         plt.close(fig)
 
         fig, ax = plt.subplots(figsize=(8, 4))
