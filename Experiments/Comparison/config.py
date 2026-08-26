@@ -25,10 +25,16 @@ config = {
     "kdV": 2,
     "eps": 0.001,
 
-# Evaluation routes (Town04 spawn indices, chosen via route_survey.py for varied
-# behavior): 20 highway/straight, 40 gentle curves, 0 one sharp corner, 180 twisty.
+# Evaluation routes (Town04 spawn indices, chosen via route_survey.py to span
+# curvature AND the resulting speed profile). Surveyed at v_max=15:
+#   20  kappa_mean 0.0031  kappa_max 0.021  v_mean 14.91  v_min 12.09  no hard events
+#   320 kappa_mean 0.0080  kappa_max 0.121  v_mean 14.16  v_min  5.00  one moderate corner
+#   0   kappa_mean 0.0132  kappa_max 0.300  v_mean 12.99  v_min  5.00  one severe corner
+#   180 kappa_mean 0.0258  kappa_max 0.256  v_mean  8.84  v_min  5.00  continuously twisty
+# Route 40 was replaced by 320: it had no hard events (v_min 12.04) and showed
+# almost no disturbance response in v3.
     "map": "Town04",
-    "route_spawn_indices": [20, 40, 0, 180],
+    "route_spawn_indices": [20, 320, 0, 180],
 
 # ---------------------------------------------------------------------------
 # Disturbances — physically grounded. All wheel parameters are expressed as
