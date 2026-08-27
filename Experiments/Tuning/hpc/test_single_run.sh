@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:nvidia_h100_80gb_hbm3_1g.10gb:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=00:30:00
+#SBATCH --time=00:45:00
 #SBATCH --output=logs/%x-%j.out
 #
 # Milestone from HPC_CARLA_HANDOFF.md item 6: boot one -nullrhi CARLA server,
@@ -52,20 +52,27 @@ set +e
 CARLA_PORT="$PORT" python -u -c "
 import faulthandler; faulthandler.enable()
 from pathlib import Path
+from Experiments.Comparison.config import config, CONDITIONS
 from Experiments.Comparison.simulate_carla import simulate_carla
 
-# tube_adaptive + icy exercises the most at-risk v3 pieces at once: the
-# steering-sanitization fix (tube_adaptive used to crash), the tire-friction
-# fault, the Town04 map load, the curvature velocity profile, and the R term.
-rmse = simulate_carla(
-    'hpc_smoketest',
-    Path('Experiments/Tuning/logs/hpc_smoketest'),
-    method='tube_adaptive',
-    icy=True,
-    spawn_index=None,
-    model_path='$SCRATCH/carla/model_trial_0',
-)
-print(f'RMSE: {rmse:.4f} m')
+# Exercise every v4 code path in one job: each disturbance condition once, on a
+# route that has a real corner. Covers apply_wheel_faults (surface + the
+# multi-parameter flat tyre), crosswind_force, the Town04 load, the curvature
+# velocity profile, the R term, and the tube_adaptive numpy fix.
+route = config['route_spawn_indices'][1]
+for cond in CONDITIONS:
+    rmse = simulate_carla(
+        f\"smoke_{cond['name']}\",
+        Path('Experiments/Tuning/logs/hpc_smoketest'),
+        method='tube_adaptive',
+        steering_force=cond['steering_force'],
+        flat_tire=cond['flat_tire'],
+        surface=cond['surface'],
+        wind=cond['wind'],
+        spawn_index=route,
+        model_path='$SCRATCH/carla/model_trial_0',
+    )
+    print(f\"RESULT route={route} cond={cond['name']:<10} rmse={rmse:.4f} m\")
 " > "$ROLLOUT_LOG" 2>&1
 RC=$?
 set -e
