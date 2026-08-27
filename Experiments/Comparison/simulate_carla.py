@@ -138,7 +138,12 @@ def crosswind_force(vehicle, wind_vec):
     aerodynamic yaw angle — and hence the side force — changes as the vehicle
     turns, rather than being a fixed lateral push.
 
-        F = 0.5 * rho * V_rel^2 * A * C,    C_S = C_S,max * sin(beta),  C_D const
+        F_side = 0.5 * rho * V_rel^2 * A * C_S,    C_S = C_S,max * sin(beta)
+
+    Only the SIDE force is applied. CARLA already simulates longitudinal
+    aerodynamic drag through the vehicle's own drag_coefficient, so adding a
+    drag term here would double-count it; the side force is the component
+    CARLA does not model.
 
     Returns (fx, fy) in Newtons, or None when the relative wind is negligible.
     """
@@ -156,9 +161,8 @@ def crosswind_force(vehicle, wind_vec):
     beta = np.arctan2(float(v_rel @ lat), float(v_rel @ fwd))
     q    = 0.5 * config['air_density'] * speed ** 2 * config['frontal_area']
 
-    f_lat  = q * config['side_force_coeff'] * np.sin(beta)
-    f_long = q * config['drag_coeff'] * np.cos(beta)
-    f      = f_lat * lat + f_long * fwd
+    f_lat = q * config['side_force_coeff'] * np.sin(beta)
+    f     = f_lat * lat
     return float(f[0]), float(f[1])
 
 

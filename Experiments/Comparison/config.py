@@ -42,37 +42,52 @@ config = {
 # vehicles and CARLA versions. Dump the actual defaults with
 #   python -m Experiments.Tuning.hpc.dump_wheel_defaults
 # ---------------------------------------------------------------------------
-    "steer_bias": 0.2,            # steering-offset magnitude [-1,1 command units]
+# Steering actuator bias. CARLA's steer command is normalised to
+# max_steer_angle = 70 deg (measured), so 0.2 = 14 deg of road-wheel angle.
+# That is a SEVERE actuator/calibration fault, not wheel misalignment (real
+# alignment pull needs only 1-3 deg, i.e. steer 0.015-0.045). Kept large
+# deliberately: at 0.2 the disturbance is still almost fully rejected by every
+# method, so a realistic misalignment would be invisible.
+    "steer_bias": 0.2,
 
-# Road surface. CARLA's default tire_friction corresponds to dry asphalt.
-# Scales are ratios of published tyre-road PEAK friction coefficients:
+# Road surface. CARLA's tire_friction is a PhysX tyre-model multiplier, NOT a
+# physical friction coefficient, and no published calibration maps the two — so
+# only RATIOS transfer. Default 3.500 (measured) is taken as dry asphalt, and
+# scaled by ratios of real peak tyre-road friction coefficients:
 #   dry asphalt mu~0.85 | wet mu~0.50 | packed snow mu~0.25 | ice mu~0.12
+# Resulting CARLA values: wet 2.100, icy 0.525.
     "wet_friction_scale":  0.60,
-    "icy_friction_scale":  0.15,  # true ice, not packed snow (was 0.29 -> snow)
+    "icy_friction_scale":  0.15,  # true ice (v3's 1.0 absolute was 0.29 -> snow)
 
-# Flat / severely under-inflated tyre on ONE wheel. A deflation is not mainly a
-# peak-mu change: the dominant effects are a loss of cornering stiffness, a
-# smaller rolling radius, and a large rolling-resistance rise that yields an
-# asymmetric yaw moment. Modelled as scales on the corresponding wheel params.
+# Severely under-inflated tyre on ONE wheel. CARLA has NO tyre-pressure
+# parameter, so this is a proxy, not a calibrated flat: a deflation is not
+# mainly a peak-mu change, its dominant effects are lost cornering stiffness, a
+# smaller rolling radius and a large rolling-resistance rise (asymmetric yaw
+# moment). Measured defaults -> faulted values on the FL wheel:
+#   lat_stiff_value 15.000 -> 6.750 | radius 34.0 -> 30.6 cm
+#   damping_rate     0.250 -> 0.750 | tire_friction 3.500 -> 2.975
+# The 10% radius drop represents severe under-inflation, not a rim-riding flat.
     "flat_tire_wheel":      0,    # 0=FL, 1=FR, 2=RL, 3=RR
     "flat_lat_stiff_scale": 0.45, # cornering-stiffness collapse (dominant effect)
     "flat_radius_scale":    0.90, # deflated rolling radius
     "flat_damping_scale":   3.0,  # rolling-resistance proxy -> asymmetric drag
     "flat_friction_scale":  0.85, # peak mu falls only modestly
 
-# Steady crosswind, applied as an aerodynamic force each step:
-#   F = 0.5 * rho * V_rel^2 * A * C   (C_S laterally, C_D longitudinally)
-# 80 km/h = Beaufort 9 (severe gale); at 15 m/s cruise this gives ~1.8 kN side
-# force ~= 0.12 g on a 1500 kg vehicle, ~14% of available tyre grip. Severe but
-# recoverable. For reference the old 15 kN wind implied a ~250 km/h relative
-# wind (Category 5) and exceeded total tyre grip (mu*m*g ~ 12.5 kN) outright,
-# which is why no controller could reject it.
+# Steady crosswind. SIDE FORCE ONLY — CARLA already simulates longitudinal drag
+# via the vehicle's own drag_coefficient (0.300 measured), so a drag term here
+# would double-count it.
+#   F_side = 0.5 * rho * V_rel^2 * A * C_S,   C_S = side_force_coeff * sin(beta)
+# Measured on vehicle.citroen.c3 (m = 1205 kg, weight 11821 N):
+#   80 km/h = Beaufort 9 (severe gale). At 15 m/s cruise the relative wind is
+#   26.8 m/s at beta = 56 deg -> 1766 N = 0.149 g = 17.6% of the tyre grip
+#   limit (mu*m*g = 10048 N at mu=0.85). Severe but recoverable.
+# For reference the legacy 15 kN wind implied a ~250 km/h relative wind and
+# demanded ~150% of available grip, so no controller could reject it.
     "wind_speed_kmh": 80.0,
     "wind_dir_deg":   90.0,       # bearing of the wind in the world XY plane
     "air_density":    1.225,      # rho [kg/m^3]
     "frontal_area":   2.2,        # A [m^2], reference area for both coefficients
     "side_force_coeff": 2.2,      # C_S at full side-on yaw
-    "drag_coeff":       0.35,     # C_D
 
 # Velocity profile (curvature-aware; see simulate_carla.compute_speed_profile)
     "v_min": 5.0,
