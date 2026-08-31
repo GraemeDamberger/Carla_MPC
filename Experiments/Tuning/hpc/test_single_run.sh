@@ -57,7 +57,7 @@ from Experiments.Comparison.simulate_carla import simulate_carla
 
 # Exercise every v4 code path in one job: each disturbance condition once, on a
 # route that has a real corner. Covers apply_wheel_faults (surface + the
-# multi-parameter flat tyre), crosswind_force, the Town04 load, the curvature
+# multi-parameter flat tire), crosswind_force, the Town04 load, the curvature
 # velocity profile, the R term, and the tube_adaptive numpy fix.
 route = config['route_spawn_indices'][1]
 for cond in CONDITIONS:

@@ -9,7 +9,7 @@
 #
 # Print the vehicle's real mass, drag coefficient and wheel parameters, what
 # each disturbance condition changes them to, and the crosswind force as a
-# fraction of available tyre grip. These are the numbers to quote in the paper.
+# fraction of available tire grip. These are the numbers to quote in the paper.
 #
 #   cd $SCRATCH/carla && sbatch ~/Carla_MPC/Experiments/Tuning/hpc/dump_defaults.sh
 

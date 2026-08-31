@@ -92,7 +92,7 @@ def apply_wheel_faults(vehicle, flat_tire=False, surface=None):
     """Apply plant faults by scaling the vehicle's OWN default wheel parameters.
 
     surface   : None | 'wet' | 'icy' — uniform peak-friction scaling on all wheels,
-                from published tyre-road peak friction coefficients.
+                from published tire-road peak friction coefficients.
     flat_tire : one wheel deflated. A deflation is not principally a peak-mu
                 change: cornering stiffness collapses, the rolling radius drops
                 and rolling resistance rises sharply, giving an asymmetric yaw

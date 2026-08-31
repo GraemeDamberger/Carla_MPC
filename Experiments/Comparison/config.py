@@ -50,28 +50,33 @@ config = {
 # method, so a realistic misalignment would be invisible.
     "steer_bias": 0.2,
 
-# Road surface. CARLA's tire_friction is a PhysX tyre-model multiplier, NOT a
+# Road surface. CARLA's tire_friction is a PhysX tire-model multiplier, NOT a
 # physical friction coefficient, and no published calibration maps the two — so
 # only RATIOS transfer. Default 3.500 (measured) is taken as dry asphalt, and
-# scaled by ratios of real peak tyre-road friction coefficients:
+# scaled by ratios of real peak tire-road friction coefficients:
 #   dry asphalt mu~0.85 | wet mu~0.50 | packed snow mu~0.25 | ice mu~0.12
 # Resulting CARLA values: wet 2.100, icy 0.525.
     "wet_friction_scale":  0.60,
     "icy_friction_scale":  0.15,  # true ice (v3's 1.0 absolute was 0.29 -> snow)
 
-# Severely under-inflated tyre on ONE wheel. CARLA has NO tyre-pressure
-# parameter, so this is a proxy, not a calibrated flat: a deflation is not
-# mainly a peak-mu change, its dominant effects are lost cornering stiffness, a
-# smaller rolling radius and a large rolling-resistance rise (asymmetric yaw
-# moment). Measured defaults -> faulted values on the FL wheel:
-#   lat_stiff_value 15.000 -> 6.750 | radius 34.0 -> 30.6 cm
-#   damping_rate     0.250 -> 0.750 | tire_friction 3.500 -> 2.975
-# The 10% radius drop represents severe under-inflation, not a rim-riding flat.
+# Flat tire on ONE wheel. CARLA has NO tire-pressure parameter and there is no
+# published model for tire deflation in CARLA (the gap was raised in CARLA
+# discussion #6170 and never answered), so this is an explicitly-defined proxy
+# rather than a calibrated fault. It targets the effects that dominate a
+# deflation in the vehicle-dynamics literature: loss of cornering stiffness,
+# reduced rolling radius, higher rolling resistance (giving an asymmetric yaw
+# moment), and reduced grip as the collapsed carcass loses an effective contact
+# patch. Measured defaults -> faulted values on the FL wheel:
+#   tire_friction   3.500 -> 1.050 | lat_stiff_value 15.000 -> 6.750
+#   radius           34.0 -> 30.6 cm | damping_rate    0.250 -> 0.750
+# The friction scale reflects a reported ~70% loss of braking/cornering grip
+# for a flat tire; the scale factors are chosen for plausibility, NOT calibrated,
+# and no quantitative fidelity is claimed for this condition.
     "flat_tire_wheel":      0,    # 0=FL, 1=FR, 2=RL, 3=RR
-    "flat_lat_stiff_scale": 0.45, # cornering-stiffness collapse (dominant effect)
+    "flat_lat_stiff_scale": 0.45, # cornering-stiffness collapse
     "flat_radius_scale":    0.90, # deflated rolling radius
     "flat_damping_scale":   3.0,  # rolling-resistance proxy -> asymmetric drag
-    "flat_friction_scale":  0.85, # peak mu falls only modestly
+    "flat_friction_scale":  0.30, # 3.500 -> 1.050
 
 # Steady crosswind. SIDE FORCE ONLY — CARLA already simulates longitudinal drag
 # via the vehicle's own drag_coefficient (0.300 measured), so a drag term here
@@ -79,7 +84,7 @@ config = {
 #   F_side = 0.5 * rho * V_rel^2 * A * C_S,   C_S = side_force_coeff * sin(beta)
 # Measured on vehicle.citroen.c3 (m = 1205 kg, weight 11821 N):
 #   80 km/h = Beaufort 9 (severe gale). At 15 m/s cruise the relative wind is
-#   26.8 m/s at beta = 56 deg -> 1766 N = 0.149 g = 17.6% of the tyre grip
+#   26.8 m/s at beta = 56 deg -> 1766 N = 0.149 g = 17.6% of the tire grip
 #   limit (mu*m*g = 10048 N at mu=0.85). Severe but recoverable.
 # For reference the legacy 15 kN wind implied a ~250 km/h relative wind and
 # demanded ~150% of available grip, so no controller could reject it.

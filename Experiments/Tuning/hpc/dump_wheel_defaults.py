@@ -64,10 +64,10 @@ def main():
             print(f"\n{surf}: tire_friction x{s} -> "
                   f"{pc.wheels[0].tire_friction * s:.3f} (all wheels)")
 
-        # flat tyre
+        # flat tire
         idx = config['flat_tire_wheel']
         w   = pc.wheels[idx]
-        print(f"\nflat tyre on {NAMES[idx]}:")
+        print(f"\nflat tire on {NAMES[idx]}:")
         for field, key in [("lat_stiff_value", "flat_lat_stiff_scale"),
                            ("radius",          "flat_radius_scale"),
                            ("damping_rate",    "flat_damping_scale"),
@@ -87,7 +87,7 @@ def main():
               f"at cruise {v_c:.1f} m/s:")
         print(f"  relative wind     : {v_rel:.1f} m/s at beta = {np.rad2deg(beta):.1f} deg")
         print(f"  side force        : {f_lat:.0f} N  ({f_lat / mg:.3f} g)")
-        print(f"  tyre grip limit   : {0.85 * mg:.0f} N  (mu=0.85)")
+        print(f"  tire grip limit   : {0.85 * mg:.0f} N  (mu=0.85)")
         print(f"  fraction of grip  : {f_lat / (0.85 * mg) * 100:.1f} %")
     finally:
         veh.destroy()
