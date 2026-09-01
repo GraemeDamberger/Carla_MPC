@@ -88,6 +88,42 @@ def compute_speed_profile(path_xy, a_lat_max, a_acc_max, a_dec_max, v_min, v_max
     return s, v
 
 
+def cross_track_error(px, py, path_xy, i0, window=300):
+    """Perpendicular distance from (px, py) to the reference polyline.
+
+    This is the standard path-tracking metric and, unlike the distance to the
+    MPC's time-indexed reference point, it is INDEPENDENT OF SPEED: a vehicle
+    that lags behind the reference is not penalised, only one that leaves the
+    path. That matters here because the MPC controls steering only — the
+    longitudinal channel is a separate PID — so lateral deviation is the
+    quantity the controller is actually responsible for.
+
+    Searches segments within +/- `window` of index `i0` (the previous closest
+    index) so the cost stays constant regardless of path length.
+
+    Returns (distance [m], index of the closest segment).
+    """
+    n  = path_xy.shape[1]
+    lo = max(0, i0 - window)
+    hi = min(n - 1, i0 + window)
+    if hi - lo < 1:
+        d = float(np.hypot(px - path_xy[0, lo], py - path_xy[1, lo]))
+        return d, lo
+
+    A  = path_xy[:, lo:hi]        # segment starts  (2, m)
+    B  = path_xy[:, lo + 1:hi + 1]  # segment ends   (2, m)
+    AB = B - A
+    AP = np.array([[px], [py]]) - A
+
+    denom = np.sum(AB * AB, axis=0)
+    t     = np.clip(np.sum(AP * AB, axis=0) / np.maximum(denom, 1e-12), 0.0, 1.0)
+    C     = A + AB * t            # closest point on each segment
+    d     = np.linalg.norm(np.array([[px], [py]]) - C, axis=0)
+
+    k = int(np.argmin(d))
+    return float(d[k]), lo + k
+
+
 def apply_wheel_faults(vehicle, flat_tire=False, surface=None):
     """Apply plant faults by scaling the vehicle's OWN default wheel parameters.
 
@@ -349,7 +385,9 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
         spectator.set_transform(carla.Transform(loc, t.rotation))
 
     # ------------------------------------------------------------------ CARLA
-    error_array = np.zeros((Steps, 2))
+    error_array = np.zeros((Steps, 2))   # legacy: offset to the MPC reference point
+    xtrack      = np.zeros(Steps)        # cross-track: perpendicular distance to path
+    ct_idx      = 0                      # running closest index on the reference
 
     port   = int(os.environ.get("CARLA_PORT", 2000))
     client = carla.Client("localhost", port)
@@ -546,6 +584,8 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
             theta          = np.deg2rad(vehicle.get_transform().rotation.yaw)
             X_traj[:, i]   = [X_curr.x, X_curr.y, theta]
             error_array[i-1] = np.array([x_mpc_ref[0], y_mpc_ref[0]]) - X_traj[:2, i-1]
+            xtrack[i-1], ct_idx = cross_track_error(
+                X_traj[0, i], X_traj[1, i], X_des, ct_idx)
 
             # online learning (replay_buffer and residual_dynamics)
             if method in ('replay_buffer', 'residual_dynamics'):
@@ -600,6 +640,17 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
             out.release()
         vehicle.destroy()
 
+    # ------------------------------------------------------------------ metrics
+    # Cross-track RMSE is the reported metric: perpendicular deviation from the
+    # path, independent of speed. The legacy reference-point RMSE is kept for
+    # comparison — it mixes lateral error with longitudinal lag, so a slower
+    # vehicle scores better on it regardless of path-following quality.
+    n_valid     = max(len(V_log), 1)
+    rmse_xtrack = float(np.sqrt(np.mean(xtrack[:n_valid] ** 2)))
+    rmse_refpt  = float(np.sqrt(np.mean(error_array[:n_valid] ** 2)))
+    print(f'  [{tag}] cross-track RMSE = {rmse_xtrack:.4f} m  '
+          f'(ref-point RMSE = {rmse_refpt:.4f} m)')
+
     # ------------------------------------------------------------------ plots
     # Skipped during hyperparameter sweeps (config['save_plots'] = False) and
     # when matplotlib is unavailable — the sweep only needs the returned RMSE.
@@ -620,22 +671,25 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
         save_plot(log_dir, fig, f'velocity_{tag}')
         plt.close(fig)
 
-        # top-down trajectory, coloured by instantaneous tracking error
+        # Top-down trajectory, coloured by CROSS-TRACK error. Only the driven
+        # portion of the reference is drawn — the full path is ~4x longer than
+        # a 50 s episode covers, and plotting all of it dwarfs the trajectory.
+        xt  = xtrack[:steps_run]
         err = np.linalg.norm(error_array[:steps_run], axis=1)
+        ref_end = min(X_des.shape[1], ct_idx + 50)
         fig, ax = plt.subplots(figsize=(9, 8))
-        ax.plot(X_des[0], X_des[1], '-', color='0.75', linewidth=3,
-                label='Reference path', zorder=1)
+        ax.plot(X_des[0, :ref_end], X_des[1, :ref_end], '-', color='0.75',
+                linewidth=3, label='Reference path (driven)', zorder=1)
         sc = ax.scatter(X_traj[0, :steps_run], X_traj[1, :steps_run],
-                        c=err, cmap='viridis', s=3, zorder=2)
+                        c=xt, cmap='viridis', s=3, zorder=2)
         cb = fig.colorbar(sc, ax=ax, shrink=0.8)
-        cb.set_label('Tracking error [m]')
+        cb.set_label('Cross-track error [m]')
         ax.plot(X_traj[0, 0], X_traj[1, 0], 'o', color='tab:green',
                 markersize=10, label='Start', zorder=3)
         ax.plot(X_traj[0, steps_run-1], X_traj[1, steps_run-1], 's',
                 color='tab:red', markersize=9, label='End', zorder=3)
-        # same expression as the returned metric, so plot and report agree
-        rmse_now = float(np.sqrt(np.mean(error_array ** 2)))
-        subtitle = f'RMSE {rmse_now:.3f} m'
+        subtitle = (f'cross-track RMSE {rmse_xtrack:.3f} m   '
+                    f'(ref-point RMSE {rmse_refpt:.3f} m)')
         if F_wind_log:
             subtitle += f'  ·  mean |F_wind| {np.mean(F_wind_log):.0f} N'
         ax.set_xlabel('X [m]')
@@ -648,12 +702,16 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
         save_plot(log_dir, fig, f'trajectory_{tag}')
         plt.close(fig)
 
-        # tracking error against distance travelled
+        # both error definitions against distance travelled, so the difference
+        # between lateral deviation and longitudinal lag is visible directly
         fig, ax = plt.subplots(figsize=(9, 4))
-        ax.plot(s_walk, err, linewidth=1.0)
+        ax.plot(s_walk, xt, linewidth=1.2, label='cross-track (lateral)')
+        ax.plot(s_walk, err, linewidth=1.0, alpha=0.7,
+                label='to MPC reference point (incl. lag)')
         ax.set_xlabel('Distance along route [m]')
-        ax.set_ylabel('Tracking error [m]')
+        ax.set_ylabel('Error [m]')
         ax.set_title(f'Error vs distance — {tag}')
+        ax.legend()
         ax.grid(True, alpha=0.4)
         plt.tight_layout()
         save_plot(log_dir, fig, f'error_{tag}')
@@ -674,4 +732,4 @@ def simulate_carla(trial_name, log_dir, method='normal', steering_force=0.0,
     elif method == 'residual_dynamics':
         save_model(log_dir, model_residual, f'model_residual_{tag}')
 
-    return float(np.sqrt(np.mean(error_array ** 2)))
+    return rmse_xtrack

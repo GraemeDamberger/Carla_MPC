@@ -132,7 +132,11 @@ config = {
     "ref_steps":100,
     "num_trials":1,
     "steps": 10000,
-    "ref_points":1500,
+    # Reference points at 2 m spacing. A 10000-step episode (50 s) covers only
+    # ~750 m at v_max=15, so 1500 points (3 km) left ~75% of the path undriven
+    # and dwarfed the trajectory in plots. 500 gives 1 km — comfortable margin
+    # for the MPC lookahead without the waste.
+    "ref_points":500,
     "seed":26,
     "record": False,
     "no_rendering_mode": False,
