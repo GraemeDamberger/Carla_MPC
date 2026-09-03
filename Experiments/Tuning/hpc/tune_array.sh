@@ -33,7 +33,8 @@ set -euo pipefail
 METHOD="${1:-tube}"
 N_TRIALS="${2:-10}"
 N_SEEDS="${3:-1}"
-RMSE_CAP="${4:-5.0}"                      # normalized-RMSE-ratio upper bound (see tune.py)
+RMSE_CAP="${4:-5.0}"                      # cross-track RMSE cap in METRES (lane is ~3.5 m,
+                                          # so 5 m means "clearly off the road")
 STUDY_NAME="${METHOD}_${STUDY_SUFFIX:-sweep_v4}"
 
 module load apptainer python/3.11

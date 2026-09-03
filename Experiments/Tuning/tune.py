@@ -54,9 +54,10 @@ BASE_SEED  = 26
 # "<method>_<STUDY_SUFFIX>"). --report reconstructs study names with the same rule.
 STUDY_SUFFIX = "sweep_v4"
 
-# Evaluation grid: each route (spawn index) x each disturbance condition. The
-# objective normalizes per-route by that route's nominal RMSE so no single route
-# dominates. Routes come from config['route_spawn_indices']; CONDITIONS from config.
+# Evaluation grid: each route (spawn index) x each disturbance condition.
+# The objective is the mean capped CROSS-TRACK RMSE in metres — absolute, since
+# cross-track error is speed-invariant and every method sees the same routes.
+# Routes come from config['route_spawn_indices']; CONDITIONS from config.
 
 # Buffer size cap: ensure online training fires at least 200 times within TUNE_STEPS.
 # Training starts at step (Np + buffer_size + 1), so cap = TUNE_STEPS - Np - 200.
@@ -158,9 +159,14 @@ def make_objective(method, temp_dir, n_seeds, steps, routes, model_path,
                    rmse_cap=None):
     """Return an Optuna objective closure over the given settings.
 
-    Objective = mean over (route x condition x seed) of the per-route-normalized
-    RMSE: each condition's RMSE is divided by that route's nominal RMSE, so route
-    difficulty does not skew the comparison. `rmse_cap` bounds that ratio.
+    Objective = mean over (route x condition x seed) of the capped CROSS-TRACK
+    RMSE, in metres.
+
+    Absolute rather than per-route-normalized: cross-track error is
+    speed-invariant and every method is scored on the identical route set, so a
+    hard route penalises all methods equally. Normalizing by each method's own
+    nominal run was exploitable — degrading nominal shrank every ratio toward 1
+    and improved the score. `rmse_cap` bounds a diverged rollout, in metres.
     """
 
     def objective(trial: optuna.Trial) -> float:
@@ -171,8 +177,7 @@ def make_objective(method, temp_dir, n_seeds, steps, routes, model_path,
         for k, v in params.items():
             print(f"  {k}: {v:.3g}" if isinstance(v, float) else f"  {k}: {v}")
 
-        norm_floor = config['rmse_norm_floor']
-        ratios: list[float] = []
+        scores: list[float] = []
 
         with patched_config(**overrides):
             for seed_idx in range(n_seeds):
@@ -183,29 +188,23 @@ def make_objective(method, temp_dir, n_seeds, steps, routes, model_path,
                 torch.manual_seed(seed)
 
                 for spawn_index in routes:
-                    # Run every condition on this route; normalize by nominal.
-                    route_rmse: dict[str, float] = {}
                     for cond in CONDITIONS:
                         with patched_config(seed=seed):
-                            route_rmse[cond["name"]] = simulate_carla(
+                            rmse = simulate_carla(
                                 "tune_temp", temp_dir, method=method,
                                 steering_force=cond["steering_force"],
                                 flat_tire=cond["flat_tire"],
                                 surface=cond["surface"], wind=cond["wind"],
                                 spawn_index=spawn_index, model_path=model_path,
                             )
-
-                    base = max(route_rmse["nominal"], norm_floor)
-                    for cname, rmse in route_rmse.items():
-                        r = rmse / base
-                        if rmse_cap is not None:
-                            r = min(r, rmse_cap)
-                        ratios.append(r)
+                        capped = rmse if rmse_cap is None else min(rmse, rmse_cap)
+                        scores.append(capped)
+                        flag = "" if capped == rmse else f"  (capped from {rmse:.4f})"
                         print(f"  seed={seed_idx}  route={spawn_index}  "
-                              f"cond={cname}  rmse={rmse:.4f} m  norm={r:.3f}")
+                              f"cond={cond['name']}  xtrack={capped:.4f} m{flag}")
 
-        score = float(np.mean(ratios))
-        print(f"[Trial {trial.number}] → mean normalized RMSE = {score:.4f}")
+        score = float(np.mean(scores))
+        print(f"[Trial {trial.number}] → mean cross-track RMSE = {score:.4f} m")
         return score
 
     return objective
@@ -218,9 +217,10 @@ def run_validation(method: str, params: dict, log_dir: Path,
                    model_path: str, steps: int = FULL_STEPS) -> dict:
     """Run the best params over every route x condition at full step count.
 
-    Records the raw RMSE for each (route, condition) plus the per-route
-    normalized ratio, so the writeup can show both absolute tracking and
-    disturbance-rejection. Result keys are "route<idx>/<condition>".
+    Records the absolute cross-track RMSE for each (route, condition) and, for
+    reporting only, its ratio to that route's nominal run — useful for showing
+    disturbance-rejection separately from baseline tracking, but NOT the
+    optimized objective. Result keys are "route<idx>/<condition>".
     """
     print(f"\n{'='*55}")
     print(f"Validation — method: {method}  ({steps} steps)")
@@ -250,7 +250,7 @@ def run_validation(method: str, params: dict, log_dir: Path,
                     spawn_index=spawn_index, model_path=model_path,
                 )
                 route_rmse[name] = rmse
-                print(f"  route{spawn_index}/{name:<12}: RMSE = {rmse:.4f} m")
+                print(f"  route{spawn_index}/{name:<12}: cross-track RMSE = {rmse:.4f} m")
 
             base = max(route_rmse["nominal"], norm_floor)
             for name, rmse in route_rmse.items():
@@ -260,10 +260,11 @@ def run_validation(method: str, params: dict, log_dir: Path,
 
     print(f"\n{'--- Validation Summary ':->55}")
     for key, rmse in results.items():
-        print(f"  {key:<22}: {rmse:.4f} m   (norm {normalized[key]:.3f})")
-    print(f"  {'Mean normalized':<22}: {np.mean(list(normalized.values())):.4f}")
+        print(f"  {key:<22}: {rmse:.4f} m   (vs route nominal {normalized[key]:.3f}x)")
+    print(f"  {'Mean cross-track':<22}: {np.mean(list(results.values())):.4f} m")
 
     out = {"method": method, "params": params, "steps": steps,
+           "metric": "cross_track_rmse_m",
            "results": results, "normalized": normalized}
     with open(log_dir / "validation_results.json", "w") as f:
         json.dump(out, f, indent=2)
@@ -311,8 +312,7 @@ def run_report(methods: list[str], suffix: str = STUDY_SUFFIX,
             print("  no completed trial yet — nothing to report")
             continue
 
-        # v3+ objective is a dimensionless per-route-normalized ratio, not metres.
-        print(f"  best trial #{best.number}: mean normalized RMSE = {best.value:.4f}")
+        print(f"  best trial #{best.number}: mean cross-track RMSE = {best.value:.4f} m")
         for k, v in best.params.items():
             print(f"    {k}: {v:.6g}" if isinstance(v, float) else f"    {k}: {v}")
 
@@ -373,8 +373,8 @@ def main() -> None:
                         help="Seeds per route/condition for noise averaging "
                              "(default 1; route diversity provides the averaging)")
     parser.add_argument("--rmse_cap", type=float, default=None,
-                        help="Upper-bound the per-route NORMALIZED RMSE ratio at this value. "
-                             "Stops any single blown-up condition from dominating the objective. "
+                        help="Upper-bound each rollout's cross-track RMSE at this value, in "
+                             "METRES, so one diverged run cannot dominate the objective. "
                              "Changes objective semantics — use a fresh study.")
     parser.add_argument("--steps", type=int, default=TUNE_STEPS,
                         help=f"Sim steps per run (default {TUNE_STEPS})")
@@ -475,7 +475,7 @@ def main() -> None:
         already_done = len(study.trials)
         print(f"Study:      {study_name}")
         print(f"Log dir:    {log_dir}")
-        print(f"RMSE cap:   {args.rmse_cap}")
+        print(f"Metric:     cross-track RMSE [m], cap {args.rmse_cap}")
         n_runs = args.n_seeds * len(routes) * len(CONDITIONS)
         print(f"Grid:       {args.n_seeds} seeds × {len(routes)} routes × {len(CONDITIONS)} conditions"
               f"  = {n_runs} rollouts / trial  ({args.steps * n_runs} sim-steps)")
@@ -500,7 +500,7 @@ def main() -> None:
 
         best = study.best_trial
         print(f"\n{'='*55}")
-        print(f"Best trial #{best.number}  —  mean normalized RMSE = {best.value:.4f}")
+        print(f"Best trial #{best.number}  —  mean cross-track RMSE = {best.value:.4f} m")
         for k, v in best.params.items():
             print(f"  {k}: {v:.6g}" if isinstance(v, float) else f"  {k}: {v}")
         print(f"Elapsed: {h:02d}:{m:02d}:{s:02d}")
